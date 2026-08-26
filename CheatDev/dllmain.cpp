@@ -1852,48 +1852,52 @@ typedef void (*CMDShoot_t)(void* __this, Il2CppArray* _cameraPosition, Il2CppArr
 CMDShoot_t oCMDShoot = nullptr;
 
 void hkCMDShoot(void* __this, Il2CppArray* _cameraPosition, Il2CppArray* _cameraForward, uint32_t tick, const MethodInfo* method) {
-    if (bEnableSilentAim && _cameraPosition && _cameraForward) {
-        Vector3 targetWorldPos{};
-        if (GetSilentAimTargetPosition(&targetWorldPos)) {
-            Vector3 camPos{};
-            if (g_UnpackShortMethod) {
-                void* args[1] = { _cameraPosition };
-                void* exc = nullptr;
-                Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(g_UnpackShortMethod, nullptr, args, &exc);
-                if (!exc && res) {
-                    camPos = *(Vector3*)((char*)res + 0x10);
-                }
-            }
-
-            if (camPos.LengthSq() < 0.0001f) {
-                void* activeCam = GetCurrentGameCamera();
-                if (activeCam) {
-                    void* camTr = g_Il2Cpp.GetComponentTransform(activeCam);
-                    if (camTr) g_Il2Cpp.GetTransformPosition(camTr, &camPos);
-                }
-            }
-
-            Vector3 aimDir = targetWorldPos - camPos;
-            float len = aimDir.Length();
-            if (len > 0.001f) {
-                aimDir = aimDir * (1.0f / len);
-
-                if (g_PackDirectionMethod) {
-                    void* args[1] = { &aimDir };
+    __try {
+        if (bEnableSilentAim && _cameraPosition && _cameraForward) {
+            Vector3 targetWorldPos{};
+            if (GetSilentAimTargetPosition(&targetWorldPos)) {
+                Vector3 camPos{};
+                if (g_UnpackShortMethod) {
+                    void* args[1] = { _cameraPosition };
                     void* exc = nullptr;
-                    Il2CppObject* packedArr = g_Il2Cpp.il2cpp_runtime_invoke(g_PackDirectionMethod, nullptr, args, &exc);
-                    if (!exc && packedArr) {
-                        _cameraForward = (Il2CppArray*)packedArr;
+                    Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(g_UnpackShortMethod, nullptr, args, &exc);
+                    if (!exc && res) {
+                        camPos = *(Vector3*)((char*)res + 0x10);
+                    }
+                }
+
+                if (camPos.LengthSq() < 0.0001f) {
+                    void* activeCam = GetCurrentGameCamera();
+                    if (activeCam) {
+                        void* camTr = g_Il2Cpp.GetComponentTransform(activeCam);
+                        if (camTr) g_Il2Cpp.GetTransformPosition(camTr, &camPos);
+                    }
+                }
+
+                Vector3 aimDir = targetWorldPos - camPos;
+                float len = aimDir.Length();
+                if (len > 0.001f) {
+                    aimDir = aimDir * (1.0f / len);
+
+                    if (g_PackDirectionMethod) {
+                        void* args[1] = { &aimDir };
+                        void* exc = nullptr;
+                        Il2CppObject* packedArr = g_Il2Cpp.il2cpp_runtime_invoke(g_PackDirectionMethod, nullptr, args, &exc);
+                        if (!exc && packedArr) {
+                            _cameraForward = (Il2CppArray*)packedArr;
+                        }
                     }
                 }
             }
         }
     }
+    __except(EXCEPTION_EXECUTE_HANDLER) {}
 
-    if (oCMDShoot) {
+    if (oCMDShoot && __this) {
         oCMDShoot(__this, _cameraPosition, _cameraForward, tick, method);
     }
 }
+
 
 // ─── Instant Teleportation & Auto-Shoot Kill Aura (Auto-Cycle Targets) ───────
 static uintptr_t g_CurrentTeleportTarget = 0;
@@ -2453,50 +2457,25 @@ static void DoMapDestruction() {
     g_LastMapDestroyTime = now;
 
     __try {
-        // Get the Object Destroy method from UnityEngine.CoreModule
-        static MethodInfo* s_DestroyMethod = nullptr;
-        if (!s_DestroyMethod && g_Il2Cpp.il2cpp_class_from_name && g_Il2Cpp.il2cpp_class_get_method_from_name) {
-            Il2CppImage* unityImg = g_Il2Cpp.GetImage("UnityEngine.CoreModule");
-            if (!unityImg) unityImg = g_Il2Cpp.GetImage("UnityEngine");
-            if (unityImg) {
-                // il2cpp_class_from_name(image, namespace, classname)
-                Il2CppClass* objClass = g_Il2Cpp.il2cpp_class_from_name(unityImg, "UnityEngine", "Object");
-                if (objClass) {
-                    s_DestroyMethod = (MethodInfo*)g_Il2Cpp.il2cpp_class_get_method_from_name(objClass, "Destroy", 1);
-                }
-            }
-        }
-
-        // Attempt to zero-out physics of all non-player rigidbodies
-        // by finding the PhysicsScene and clearing all dynamic RBs
-        // Since we can't enumerate all RBs easily, we use a targeted approach:
-        // freeze all enemy player physics as a secondary effect
         Il2CppArray* arr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
         if (!arr) return;
         uintptr_t count = *(uintptr_t*)((char*)arr + 0x18);
+        if (count == 0 || count > 64) return;
         void** items = (void**)((char*)arr + 0x20);
 
-        int destroyCount = 0;
+        int countEffect = 0;
         for (uintptr_t i = 0; i < count; i++) {
             void* p = items[i];
             if (!p || g_Il2Cpp.IsLocalPlayer(p)) continue;
+            if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(p) || !g_Il2Cpp.IsSpawned(p)) continue;
 
-            // Zero velocity and pin them underground
             void* rootRb = *(void**)((char*)p + 0x108);
             if (rootRb) {
-                g_Il2Cpp.SetRigidbodyLinearVelocity(rootRb, Vector3(0, -9999, 0));
-                g_Il2Cpp.SetRigidbodyAngularVelocity(rootRb, Vector3(0,0,0));
+                g_Il2Cpp.SetRigidbodyLinearVelocity(rootRb, Vector3(0.0f, -9999.0f, 0.0f));
+                g_Il2Cpp.SetRigidbodyAngularVelocity(rootRb, Vector3(0.0f, 0.0f, 0.0f));
             }
-
-            // Deactivate the enemy's GameObject (effectively removes from scene)
-            if (s_DestroyMethod) {
-                void* args[1] = { p };
-                void* exc = nullptr;
-                g_Il2Cpp.il2cpp_runtime_invoke(s_DestroyMethod, nullptr, args, &exc);
-            }
-            destroyCount++;
+            countEffect++;
         }
-        CheatLog("[MAP] Map destruction pass: %d objects removed", destroyCount);
     }
     __except(EXCEPTION_EXECUTE_HANDLER) {}
 }
@@ -4038,15 +4017,25 @@ DWORD WINAPI InitThread(LPVOID lpParam) {
             CheatLog("[+] Weapon::CMDShoot hooked at 0x%p", cmdShootTarget);
         }
 
-        // Hook Unity Game Engine Debug Log and Exception Handler
-        if (g_Il2Cpp.hGameAssembly) {
-            void* pInternalLog = (void*)((char*)g_Il2Cpp.hGameAssembly + 0x297b3a0);
-            void* pInternalLogException = (void*)((char*)g_Il2Cpp.hGameAssembly + 0x297b530);
-
-            MH_CreateHook(pInternalLog, (LPVOID)&hkInternal_Log, (void**)&oInternal_Log);
-            MH_CreateHook(pInternalLogException, (LPVOID)&hkInternal_LogException, (void**)&oInternal_LogException);
-            CheatLog("[+] Unity Game Engine Log Interceptors hooked at 0x%p, 0x%p", pInternalLog, pInternalLogException);
+        // Hook Unity Game Engine Debug Log and Exception Handler dynamically
+        Il2CppImage* coreImg = g_Il2Cpp.GetImage("UnityEngine.CoreModule");
+        if (!coreImg) coreImg = g_Il2Cpp.GetImage("UnityEngine");
+        if (coreImg && g_Il2Cpp.il2cpp_class_from_name && g_Il2Cpp.il2cpp_class_get_method_from_name) {
+            Il2CppClass* dbgClass = g_Il2Cpp.il2cpp_class_from_name(coreImg, "UnityEngine", "DebugLogHandler");
+            if (dbgClass) {
+                MethodInfo* mLog = (MethodInfo*)g_Il2Cpp.il2cpp_class_get_method_from_name(dbgClass, "Internal_Log", 4);
+                if (mLog && *(void**)mLog) {
+                    MH_CreateHook(*(void**)mLog, (LPVOID)&hkInternal_Log, (void**)&oInternal_Log);
+                    CheatLog("[+] UnityEngine.DebugLogHandler::Internal_Log hooked at 0x%p", *(void**)mLog);
+                }
+                MethodInfo* mExc = (MethodInfo*)g_Il2Cpp.il2cpp_class_get_method_from_name(dbgClass, "Internal_LogException", 2);
+                if (mExc && *(void**)mExc) {
+                    MH_CreateHook(*(void**)mExc, (LPVOID)&hkInternal_LogException, (void**)&oInternal_LogException);
+                    CheatLog("[+] UnityEngine.DebugLogHandler::Internal_LogException hooked at 0x%p", *(void**)mExc);
+                }
+            }
         }
+
 
         MH_EnableHook(MH_ALL_HOOKS);
         CheatLog("[+] All MinHook detours enabled successfully.");
