@@ -745,325 +745,325 @@ static void ResolveBoneSafe(void* mainCam, void* rbPtr, BonePoint& outBone) {
     outBone.valid = false;
     if (!rbPtr || !mainCam) return;
 
-    if (g_Il2Cpp.GetRigidbodyPosition(rbPtr, &outBone.world)) {
-        if (fabsf(outBone.world.x) < 0.001f && fabsf(outBone.world.y) < 0.001f && fabsf(outBone.world.z) < 0.001f)
-            return;
+    __try {
+        if (g_Il2Cpp.GetRigidbodyPosition(rbPtr, &outBone.world)) {
+            if (fabsf(outBone.world.x) < 0.001f && fabsf(outBone.world.y) < 0.001f && fabsf(outBone.world.z) < 0.001f)
+                return;
 
-        if (g_Il2Cpp.WorldToScreen(mainCam, outBone.world, &outBone.screen)) {
-            if (outBone.screen.z > 0.5f && outBone.screen.z < 600.0f &&
-                !std::isnan(outBone.screen.z) && !std::isinf(outBone.screen.z) &&
-                !std::isnan(outBone.screen.x) && !std::isnan(outBone.screen.y)) {
+            if (g_Il2Cpp.WorldToScreen(mainCam, outBone.world, &outBone.screen)) {
+                if (outBone.screen.z > 0.5f && outBone.screen.z < 500.0f &&
+                    !std::isnan(outBone.screen.z) && !std::isinf(outBone.screen.z) &&
+                    !std::isnan(outBone.screen.x) && !std::isnan(outBone.screen.y) &&
+                    !std::isinf(outBone.screen.x) && !std::isinf(outBone.screen.y)) {
 
-                ImGuiIO& io = ImGui::GetIO();
-                float sw = io.DisplaySize.x;
-                float sh = io.DisplaySize.y;
-                if (outBone.screen.x >= -300.0f && outBone.screen.x <= sw + 300.0f &&
-                    outBone.screen.y >= -300.0f && outBone.screen.y <= sh + 300.0f) {
-                    outBone.valid = true;
-                }
-            }
-        }
-    }
-}
-
-// ─── Helper to get the currently active camera (Alive or Dead) ───────────────
-static void* GetCurrentGameCamera() {
-    // 1. Prioritize Local PlayerMovement -> _cam -> cam
-    if (g_PlayerMovementClass) {
-        Il2CppArray* pmArr = g_Il2Cpp.FindObjectsOfType(g_PlayerMovementClass);
-        if (pmArr) {
-            uintptr_t cnt = *(uintptr_t*)((char*)pmArr + 0x18);
-            void** items = (void**)((char*)pmArr + 0x20);
-            for (uintptr_t i = 0; i < cnt; i++) {
-                if (items[i] && g_Il2Cpp.IsLocalPlayer(items[i])) {
-                    void* rCamCtrl = *(void**)((char*)items[i] + 0x220);
-                    if (rCamCtrl) {
-                        void* rCam = *(void**)((char*)rCamCtrl + 0x140);
-                        if (rCam) return rCam;
+                    ImGuiIO& io = ImGui::GetIO();
+                    float sw = io.DisplaySize.x;
+                    float sh = io.DisplaySize.y;
+                    if (outBone.screen.x >= -150.0f && outBone.screen.x <= sw + 150.0f &&
+                        outBone.screen.y >= -150.0f && outBone.screen.y <= sh + 150.0f) {
+                        outBone.valid = true;
                     }
                 }
             }
         }
     }
+    __except(EXCEPTION_EXECUTE_HANDLER) {
+        outBone.valid = false;
+    }
+}
 
-    // 2. Prioritize Local RagdollCameraController -> cam
-    if (g_RagdollCamClass) {
-        Il2CppArray* camArr = g_Il2Cpp.FindObjectsOfType(g_RagdollCamClass);
-        if (camArr) {
-            uintptr_t cnt = *(uintptr_t*)((char*)camArr + 0x18);
-            void** items = (void**)((char*)camArr + 0x20);
-            for (uintptr_t i = 0; i < cnt; i++) {
-                if (items[i] && g_Il2Cpp.IsLocalPlayer(items[i])) {
-                    void* rCam = *(void**)((char*)items[i] + 0x140);
-                    if (rCam) return rCam;
+// ─── Helper to get the currently active camera (Alive, Dead, or Spectating) ──
+static void* GetCurrentGameCamera() {
+    __try {
+        // 1. Prioritize Local PlayerMovement -> _cam -> cam
+        if (g_PlayerMovementClass) {
+            Il2CppArray* pmArr = g_Il2Cpp.FindObjectsOfType(g_PlayerMovementClass);
+            if (pmArr) {
+                uintptr_t cnt = *(uintptr_t*)((char*)pmArr + 0x18);
+                if (cnt > 0 && cnt <= 64) {
+                    void** items = (void**)((char*)pmArr + 0x20);
+                    for (uintptr_t i = 0; i < cnt; i++) {
+                        if (items[i] && g_Il2Cpp.IsLocalPlayer(items[i])) {
+                            void* rCamCtrl = *(void**)((char*)items[i] + 0x220);
+                            if (rCamCtrl) {
+                                void* rCam = *(void**)((char*)rCamCtrl + 0x140);
+                                if (rCam) return rCam;
+                            }
+                        }
+                    }
                 }
             }
         }
-    }
 
-    // 3. Prioritize Local Player -> PlayerMovement -> _cam -> cam
-    if (g_PlayerClass && g_PlayerMovementClass) {
-        Il2CppArray* pArr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
-        if (pArr) {
-            uintptr_t cnt = *(uintptr_t*)((char*)pArr + 0x18);
-            void** items = (void**)((char*)pArr + 0x20);
-            for (uintptr_t i = 0; i < cnt; i++) {
-                if (items[i] && g_Il2Cpp.IsLocalPlayer(items[i])) {
-                    void* pm = g_Il2Cpp.GetComponent(items[i], g_PlayerMovementClass);
-                    if (pm) {
-                        void* rCamCtrl = *(void**)((char*)pm + 0x220);
-                        if (rCamCtrl) {
-                            void* rCam = *(void**)((char*)rCamCtrl + 0x140);
+        // 2. Prioritize Local RagdollCameraController -> cam
+        if (g_RagdollCamClass) {
+            Il2CppArray* camArr = g_Il2Cpp.FindObjectsOfType(g_RagdollCamClass);
+            if (camArr) {
+                uintptr_t cnt = *(uintptr_t*)((char*)camArr + 0x18);
+                if (cnt > 0 && cnt <= 64) {
+                    void** items = (void**)((char*)camArr + 0x20);
+                    for (uintptr_t i = 0; i < cnt; i++) {
+                        if (items[i] && g_Il2Cpp.IsLocalPlayer(items[i])) {
+                            void* rCam = *(void**)((char*)items[i] + 0x140);
                             if (rCam) return rCam;
                         }
                     }
                 }
             }
         }
-    }
 
-    // 4. Fallback to Camera.main / current / allCameras (only when dead, spectating, or in menu)
-    return g_Il2Cpp.GetMainCamera();
+        // 3. Fallback to Camera.main / current
+        return g_Il2Cpp.GetMainCamera();
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER) {
+        return nullptr;
+    }
 }
 
-// ─── Safe Frame Update (Executes on Render Thread — No Multithreading Crashes)
+// ─── Safe Frame Update (Render Thread — Zero Crashes on Death & Despawn) ─────
 static void UpdateFrameESPData() {
-    if (!bEnableESP && !bEnableAimbot) {
+    if (!bEnableESP && !bEnableAimbot && !bEnableSilentAim) {
         g_ESPData.clear();
         return;
     }
 
-    void* activeCam = GetCurrentGameCamera();
-    if (!activeCam) return;
+    __try {
+        void* activeCam = GetCurrentGameCamera();
+        if (!activeCam) return;
 
-    std::vector<PlayerESPData> newData;
+        std::vector<PlayerESPData> newData;
 
-    Il2CppArray* arr = nullptr;
-    if (g_PlayerClass) {
-        arr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
-    }
+        Il2CppArray* arr = nullptr;
+        if (g_PlayerClass) {
+            arr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
+        }
 
-    if (arr) {
-        uintptr_t count = *(uintptr_t*)((char*)arr + 0x18);
-        void**    items = (void**)    ((char*)arr + 0x20);
+        if (arr) {
+            uintptr_t count = *(uintptr_t*)((char*)arr + 0x18);
+            if (count == 0 || count > 128) return;
 
-        // 1. Identify local player and their real team
-        bool localAwayTeam = false;
-        bool foundLocal = false;
+            void** items = (void**)((char*)arr + 0x20);
 
-        for (uintptr_t i = 0; i < count; i++) {
-            void* playerObj = items[i];
-            if (!playerObj) continue;
+            // 1. Identify local player and their real team
+            bool localAwayTeam = false;
+            bool foundLocal = false;
 
-            if (g_Il2Cpp.IsLocalPlayer(playerObj)) {
-                foundLocal = true;
+            for (uintptr_t i = 0; i < count; i++) {
+                void* playerObj = items[i];
+                if (!playerObj) continue;
+
+                if (g_Il2Cpp.IsLocalPlayer(playerObj)) {
+                    foundLocal = true;
+                    if (g_PlayerMovementClass) {
+                        void* pm = g_Il2Cpp.GetComponent(playerObj, g_PlayerMovementClass);
+                        if (pm) {
+                            localAwayTeam = *(bool*)((char*)pm + 0x1C4);
+                        }
+                    }
+                    break;
+                }
+            }
+
+            for (uintptr_t i = 0; i < count; i++) {
+                void* playerObj = items[i];
+                if (!playerObj) continue;
+
+                // Filter out inactive / despawned game objects
+                if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(playerObj))
+                    continue;
+
+                if (!g_Il2Cpp.IsSpawned(playerObj))
+                    continue;
+
+                PlayerESPData data{};
+                data.isLocal = g_Il2Cpp.IsLocalPlayer(playerObj);
+
+                // Read Health & Team
+                data.maxHp = 100;
+                data.hp    = 100;
+                data.isDead= false;
+
+                if (g_HealthClass) {
+                    void* healthComp = g_Il2Cpp.GetComponent(playerObj, g_HealthClass);
+                    if (healthComp) {
+                        data.maxHp = *(int*)((char*)healthComp + 0xF8);
+                        if (g_GetCurrentHealth) {
+                            void* exc = nullptr;
+                            Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(
+                                g_GetCurrentHealth, healthComp, nullptr, &exc);
+                            if (res && !exc) {
+                                data.hp = *(int*)((char*)res + 0x10);
+                            }
+                        }
+                        if (g_IsDeadMethod) {
+                            void* exc = nullptr;
+                            Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(
+                                g_IsDeadMethod, healthComp, nullptr, &exc);
+                            if (res && !exc) {
+                                data.isDead = *(bool*)((char*)res + 0x10);
+                            }
+                        }
+                    }
+                }
+
+                if (bIgnoreDead && (data.isDead || data.hp <= 0)) {
+                    continue;
+                }
+
+                // Team resolution
                 if (g_PlayerMovementClass) {
                     void* pm = g_Il2Cpp.GetComponent(playerObj, g_PlayerMovementClass);
                     if (pm) {
-                        localAwayTeam = *(bool*)((char*)pm + 0x1C4);
+                        data.awayTeam = *(bool*)((char*)pm + 0x1C4);
+                    }
+                } else if (g_SharedRefClass) {
+                    void* sharedRef = g_Il2Cpp.GetComponent(playerObj, g_SharedRefClass);
+                    if (sharedRef) {
+                        data.awayTeam = *(bool*)((char*)sharedRef + 0x108);
                     }
                 }
-                break;
-            }
-        }
 
-        for (uintptr_t i = 0; i < count; i++) {
-            void* playerObj = items[i];
-            if (!playerObj) continue;
-
-            // Filter out inactive game objects in hierarchy
-            if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(playerObj))
-                continue;
-
-            // Filter out despawned/dormant network objects
-            if (!g_Il2Cpp.IsSpawned(playerObj))
-                continue;
-
-            PlayerESPData data{};
-            data.isLocal = g_Il2Cpp.IsLocalPlayer(playerObj);
-
-            // Read Health & Team first
-            data.maxHp = 100;
-            data.hp    = 100;
-            data.isDead= false;
-
-            if (g_HealthClass) {
-                void* healthComp = g_Il2Cpp.GetComponent(playerObj, g_HealthClass);
-                if (healthComp) {
-                    data.maxHp = *(int*)((char*)healthComp + 0xF8);
-                    if (g_GetCurrentHealth) {
-                        void* exc = nullptr;
-                        Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(
-                            g_GetCurrentHealth, healthComp, nullptr, &exc);
-                        if (res && !exc) {
-                            data.hp = *(int*)((char*)res + 0x10);
-                        }
-                    }
-                    if (g_IsDeadMethod) {
-                        void* exc = nullptr;
-                        Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(
-                            g_IsDeadMethod, healthComp, nullptr, &exc);
-                        if (res && !exc) {
-                            data.isDead = *(bool*)((char*)res + 0x10);
-                        }
-                    }
-                }
-            }
-
-            if (bIgnoreDead && (data.isDead || data.hp <= 0)) {
-                continue;
-            }
-
-            // Accurate Team resolution from PlayerMovement primitive bool
-            if (g_PlayerMovementClass) {
-                void* pm = g_Il2Cpp.GetComponent(playerObj, g_PlayerMovementClass);
-                if (pm) {
-                    data.awayTeam = *(bool*)((char*)pm + 0x1C4);
-                }
-            } else if (g_SharedRefClass) {
-                void* sharedRef = g_Il2Cpp.GetComponent(playerObj, g_SharedRefClass);
-                if (sharedRef) {
-                    data.awayTeam = *(bool*)((char*)sharedRef + 0x108);
-                }
-            }
-
-            // In Deathmatch / FFA: treat everyone as enemy unless teammates filter is explicitly enabled
-            if (bIgnoreTeammates && foundLocal && (data.awayTeam == localAwayTeam) && !data.isLocal) {
-                continue;
-            }
-
-            data.isEnemy = foundLocal ? (data.awayTeam != localAwayTeam) : true;
-
-            // Read all 15 physics Rigidbody pointers
-            void* spineRb     = *(void**)((char*)playerObj + 0x100);
-            void* rootRb      = *(void**)((char*)playerObj + 0x108);
-            void* lFootRb     = *(void**)((char*)playerObj + 0x110);
-            void* rFootRb     = *(void**)((char*)playerObj + 0x118);
-            void* lKneeRb     = *(void**)((char*)playerObj + 0x120);
-            void* rKneeRb     = *(void**)((char*)playerObj + 0x128);
-            void* lHandRb     = *(void**)((char*)playerObj + 0x130);
-            void* rHandRb     = *(void**)((char*)playerObj + 0x138);
-            void* lElbowRb    = *(void**)((char*)playerObj + 0x140);
-            void* rElbowRb    = *(void**)((char*)playerObj + 0x148);
-            void* lUpperArmRb = *(void**)((char*)playerObj + 0x150);
-            void* rUpperArmRb = *(void**)((char*)playerObj + 0x158);
-            void* lShoulderRb = *(void**)((char*)playerObj + 0x160);
-            void* rShoulderRb = *(void**)((char*)playerObj + 0x168);
-            void* chestRb     = *(void**)((char*)playerObj + 0x170);
-
-            ResolveBoneSafe(activeCam, chestRb,     data.chest);
-            ResolveBoneSafe(activeCam, spineRb,     data.spine);
-            ResolveBoneSafe(activeCam, rootRb,      data.root);
-            ResolveBoneSafe(activeCam, lShoulderRb, data.lShoulder);
-            ResolveBoneSafe(activeCam, lUpperArmRb, data.lUpperArm);
-            ResolveBoneSafe(activeCam, lElbowRb,    data.lElbow);
-            ResolveBoneSafe(activeCam, lHandRb,     data.lHand);
-            ResolveBoneSafe(activeCam, rShoulderRb, data.rShoulder);
-            ResolveBoneSafe(activeCam, rUpperArmRb, data.rUpperArm);
-            ResolveBoneSafe(activeCam, rElbowRb,    data.rElbow);
-            ResolveBoneSafe(activeCam, rHandRb,     data.rHand);
-            ResolveBoneSafe(activeCam, lKneeRb,     data.lKnee);
-            ResolveBoneSafe(activeCam, lFootRb,     data.lFoot);
-            ResolveBoneSafe(activeCam, rKneeRb,     data.rKnee);
-            ResolveBoneSafe(activeCam, rFootRb,     data.rFoot);
-
-            if (!data.chest.valid && !data.root.valid)
-                continue;
-
-            // Synthesize Head point from Chest position (+0.40m up)
-            if (data.chest.valid) {
-                data.head.world = data.chest.world + Vector3(0.0f, 0.40f, 0.0f);
-                if (g_Il2Cpp.WorldToScreen(activeCam, data.head.world, &data.head.screen)) {
-                    if (data.head.screen.z > 0.3f) data.head.valid = true;
-                }
-            }
-
-            std::vector<Vector3> validPoints;
-            auto AddPoint = [&](const BonePoint& b) {
-                if (b.valid) validPoints.push_back(b.screen);
-            };
-
-            AddPoint(data.head);
-            AddPoint(data.chest);
-            AddPoint(data.spine);
-            AddPoint(data.root);
-            AddPoint(data.lShoulder);
-            AddPoint(data.lUpperArm);
-            AddPoint(data.lElbow);
-            AddPoint(data.lHand);
-            AddPoint(data.rShoulder);
-            AddPoint(data.rUpperArm);
-            AddPoint(data.rElbow);
-            AddPoint(data.rHand);
-            AddPoint(data.lKnee);
-            AddPoint(data.lFoot);
-            AddPoint(data.rKnee);
-            AddPoint(data.rFoot);
-
-            if (validPoints.size() >= 2) {
-                float minX = 999999.0f, maxX = -999999.0f;
-                float minY = 999999.0f, maxY = -999999.0f;
-                float totalZ = 0.0f;
-
-                ImGuiIO& io = ImGui::GetIO();
-                float sh = io.DisplaySize.y;
-
-                for (const auto& pt : validPoints) {
-                    float sx = pt.x;
-                    float sy = sh - pt.y;
-
-                    if (sx < minX) minX = sx;
-                    if (sx > maxX) maxX = sx;
-                    if (sy < minY) minY = sy;
-                    if (sy > maxY) maxY = sy;
-
-                    totalZ += pt.z;
+                if (bIgnoreTeammates && foundLocal && (data.awayTeam == localAwayTeam) && !data.isLocal) {
+                    continue;
                 }
 
-                data.distance = totalZ / (float)validPoints.size();
-                if (data.distance > fMaxDistance || data.distance < 0.2f) continue;
+                data.isEnemy = foundLocal ? (data.awayTeam != localAwayTeam) : true;
 
-                if ((maxX - minX) < 3.0f && (maxY - minY) < 3.0f)
+                // Read all 15 physics Rigidbody pointers safely
+                void* spineRb     = *(void**)((char*)playerObj + 0x100);
+                void* rootRb      = *(void**)((char*)playerObj + 0x108);
+                void* lFootRb     = *(void**)((char*)playerObj + 0x110);
+                void* rFootRb     = *(void**)((char*)playerObj + 0x118);
+                void* lKneeRb     = *(void**)((char*)playerObj + 0x120);
+                void* rKneeRb     = *(void**)((char*)playerObj + 0x128);
+                void* lHandRb     = *(void**)((char*)playerObj + 0x130);
+                void* rHandRb     = *(void**)((char*)playerObj + 0x138);
+                void* lElbowRb    = *(void**)((char*)playerObj + 0x140);
+                void* rElbowRb    = *(void**)((char*)playerObj + 0x148);
+                void* lUpperArmRb = *(void**)((char*)playerObj + 0x150);
+                void* rUpperArmRb = *(void**)((char*)playerObj + 0x158);
+                void* lShoulderRb = *(void**)((char*)playerObj + 0x160);
+                void* rShoulderRb = *(void**)((char*)playerObj + 0x168);
+                void* chestRb     = *(void**)((char*)playerObj + 0x170);
+
+                ResolveBoneSafe(activeCam, chestRb,     data.chest);
+                ResolveBoneSafe(activeCam, spineRb,     data.spine);
+                ResolveBoneSafe(activeCam, rootRb,      data.root);
+                ResolveBoneSafe(activeCam, lShoulderRb, data.lShoulder);
+                ResolveBoneSafe(activeCam, lUpperArmRb, data.lUpperArm);
+                ResolveBoneSafe(activeCam, lElbowRb,    data.lElbow);
+                ResolveBoneSafe(activeCam, lHandRb,     data.lHand);
+                ResolveBoneSafe(activeCam, rShoulderRb, data.rShoulder);
+                ResolveBoneSafe(activeCam, rUpperArmRb, data.rUpperArm);
+                ResolveBoneSafe(activeCam, rElbowRb,    data.rElbow);
+                ResolveBoneSafe(activeCam, rHandRb,     data.rHand);
+                ResolveBoneSafe(activeCam, lKneeRb,     data.lKnee);
+                ResolveBoneSafe(activeCam, lFootRb,     data.lFoot);
+                ResolveBoneSafe(activeCam, rKneeRb,     data.rKnee);
+                ResolveBoneSafe(activeCam, rFootRb,     data.rFoot);
+
+                if (!data.chest.valid && !data.root.valid)
                     continue;
 
-                float padX = (data.distance > 0.1f) ? (14.0f / data.distance * 2.0f) : 10.0f;
-                float padY = (data.distance > 0.1f) ? (10.0f / data.distance * 2.0f) : 8.0f;
-                if (padX < 6.0f) padX = 6.0f;
-                if (padX > 30.0f) padX = 30.0f;
-                if (padY < 6.0f) padY = 6.0f;
-                if (padY > 25.0f) padY = 25.0f;
-
-                data.boxMinX = minX - padX;
-                data.boxMaxX = maxX + padX;
-                data.boxMinY = minY - padY;
-                data.boxMaxY = maxY + padY;
-
-                float boxW = data.boxMaxX - data.boxMinX;
-                float boxH = data.boxMaxY - data.boxMinY;
-
-                float sw = io.DisplaySize.x;
-                if (boxW < 4.0f || boxH < 4.0f || boxW > sw * 0.75f || boxH > sh * 0.85f)
-                    continue;
-
-                if (data.boxMaxX < -50.0f || data.boxMinX > sw + 50.0f || data.boxMaxY < -50.0f || data.boxMinY > sh + 50.0f)
-                    continue;
-
-                data.hasBox  = true;
-
+                // Synthesize Head point from Chest position (+0.38m up)
                 if (data.chest.valid) {
-                    data.aimScreenPos = data.chest.screen;
-                } else if (data.head.valid) {
-                    data.aimScreenPos = data.head.screen;
-                } else {
-                    data.aimScreenPos = validPoints[0];
+                    data.head.world = data.chest.world + Vector3(0.0f, 0.38f, 0.0f);
+                    if (g_Il2Cpp.WorldToScreen(activeCam, data.head.world, &data.head.screen)) {
+                        if (data.head.screen.z > 0.5f && data.head.screen.z < 500.0f) data.head.valid = true;
+                    }
                 }
 
-                newData.push_back(data);
+                std::vector<Vector3> validPoints;
+                auto AddPoint = [&](const BonePoint& b) {
+                    if (b.valid && b.screen.z > 0.5f) validPoints.push_back(b.screen);
+                };
+
+                AddPoint(data.head);
+                AddPoint(data.chest);
+                AddPoint(data.spine);
+                AddPoint(data.root);
+                AddPoint(data.lShoulder);
+                AddPoint(data.lUpperArm);
+                AddPoint(data.lElbow);
+                AddPoint(data.lHand);
+                AddPoint(data.rShoulder);
+                AddPoint(data.rUpperArm);
+                AddPoint(data.rElbow);
+                AddPoint(data.rHand);
+                AddPoint(data.lKnee);
+                AddPoint(data.lFoot);
+                AddPoint(data.rKnee);
+                AddPoint(data.rFoot);
+
+                if (validPoints.size() >= 2) {
+                    float minX = 999999.0f, maxX = -999999.0f;
+                    float minY = 999999.0f, maxY = -999999.0f;
+                    float totalZ = 0.0f;
+
+                    ImGuiIO& io = ImGui::GetIO();
+                    float sh = io.DisplaySize.y;
+
+                    for (const auto& pt : validPoints) {
+                        float sx = pt.x;
+                        float sy = sh - pt.y;
+
+                        if (sx < minX) minX = sx;
+                        if (sx > maxX) maxX = sx;
+                        if (sy < minY) minY = sy;
+                        if (sy > maxY) maxY = sy;
+
+                        totalZ += pt.z;
+                    }
+
+                    data.distance = totalZ / (float)validPoints.size();
+                    if (data.distance > fMaxDistance || data.distance < 0.3f) continue;
+
+                    float rawW = maxX - minX;
+                    float rawH = maxY - minY;
+                    if (rawW < 2.0f && rawH < 2.0f) continue;
+
+                    float padX = (data.distance > 0.1f) ? (12.0f / data.distance * 2.0f) : 8.0f;
+                    float padY = (data.distance > 0.1f) ? (8.0f / data.distance * 2.0f) : 6.0f;
+                    if (padX < 4.0f) padX = 4.0f;
+                    if (padX > 24.0f) padX = 24.0f;
+                    if (padY < 4.0f) padY = 4.0f;
+                    if (padY > 20.0f) padY = 20.0f;
+
+                    data.boxMinX = minX - padX;
+                    data.boxMaxX = maxX + padX;
+                    data.boxMinY = minY - padY;
+                    data.boxMaxY = maxY + padY;
+
+                    float boxW = data.boxMaxX - data.boxMinX;
+                    float boxH = data.boxMaxY - data.boxMinY;
+
+                    float sw = io.DisplaySize.x;
+                    if (boxW < 6.0f || boxH < 8.0f || boxW > sw * 0.70f || boxH > sh * 0.85f)
+                        continue;
+
+                    if (data.boxMaxX < -40.0f || data.boxMinX > sw + 40.0f || data.boxMaxY < -40.0f || data.boxMinY > sh + 40.0f)
+                        continue;
+
+                    data.hasBox  = true;
+
+                    if (data.chest.valid) {
+                        data.aimScreenPos = data.chest.screen;
+                    } else if (data.head.valid) {
+                        data.aimScreenPos = data.head.screen;
+                    } else {
+                        data.aimScreenPos = validPoints[0];
+                    }
+
+                    newData.push_back(data);
+                }
             }
         }
-    }
 
-    g_ESPData = std::move(newData);
+        g_ESPData = std::move(newData);
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER) {
+        g_ESPData.clear();
+    }
 }
 
 // ─── ESP Drawing (With Glow & Dynamic Custom Colors) ─────────────────────────
@@ -1787,14 +1787,23 @@ static void DoGodMode() {
         if (!arr) return;
 
         uintptr_t count = *(uintptr_t*)((char*)arr + 0x18);
+        if (count == 0 || count > 64) return;
         void** items = (void**)((char*)arr + 0x20);
 
         for (uintptr_t i = 0; i < count; i++) {
             void* p = items[i];
             if (p && g_Il2Cpp.IsLocalPlayer(p)) {
+                if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(p) || !g_Il2Cpp.IsSpawned(p))
+                    break;
+
                 void* hComp = g_Il2Cpp.GetComponent(p, g_HealthClass);
                 if (hComp) {
-                    *(int*)((char*)hComp + 0xF8) = 99999; // maxHealth
+                    bool isDead = false;
+                    if (g_IsDeadMethod) {
+                        void* exc = nullptr;
+                        Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(g_IsDeadMethod, hComp, nullptr, &exc);
+                        if (res && !exc) isDead = *(bool*)((char*)res + 0x10);
+                    }
 
                     int currentHp = 100;
                     if (g_GetCurrentHealth) {
@@ -1802,6 +1811,13 @@ static void DoGodMode() {
                         Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(g_GetCurrentHealth, hComp, nullptr, &exc);
                         if (res && !exc) currentHp = *(int*)((char*)res + 0x10);
                     }
+
+                    if (isDead || currentHp <= 0) {
+                        // Allow clean respawn without firing RPCs
+                        break;
+                    }
+
+                    *(int*)((char*)hComp + 0xF8) = 99999; // maxHealth
 
                     if (currentHp < 90000 && g_CMDChangeCurrentHealth) {
                         int newHp = 99999;
@@ -2147,110 +2163,110 @@ static void DoMassKill() {
     }
 }
 
-// ─── Luxury Flat-Design Dark Mode MIDNIGHT Theme ────────────────────────────
-static void ApplyMidnightTheme() {
+// ─── Material UI 3 / Google Sans Dark Theme ─────────────────────────────────
+static void ApplyMaterialTheme() {
     ImGuiStyle& style = ImGui::GetStyle();
     
-    style.WindowRounding    = 8.0f;
-    style.ChildRounding     = 6.0f;
-    style.FrameRounding     = 4.0f;
-    style.PopupRounding     = 6.0f;
-    style.ScrollbarRounding = 6.0f;
-    style.GrabRounding      = 4.0f;
-    style.TabRounding       = 4.0f;
+    style.WindowRounding    = 14.0f;
+    style.ChildRounding     = 10.0f;
+    style.FrameRounding     = 8.0f;
+    style.PopupRounding     = 10.0f;
+    style.ScrollbarRounding = 8.0f;
+    style.GrabRounding      = 6.0f;
+    style.TabRounding       = 8.0f;
 
     style.WindowBorderSize  = 1.0f;
     style.ChildBorderSize   = 1.0f;
     style.PopupBorderSize   = 1.0f;
     style.FrameBorderSize   = 0.0f;
 
-    style.WindowPadding     = ImVec2(16.0f, 16.0f);
-    style.FramePadding      = ImVec2(10.0f, 6.0f);
-    style.ItemSpacing       = ImVec2(10.0f, 8.0f);
-    style.ItemInnerSpacing  = ImVec2(6.0f, 6.0f);
+    style.WindowPadding     = ImVec2(18.0f, 18.0f);
+    style.FramePadding      = ImVec2(12.0f, 7.0f);
+    style.ItemSpacing       = ImVec2(10.0f, 9.0f);
+    style.ItemInnerSpacing  = ImVec2(8.0f, 6.0f);
     style.IndentSpacing     = 20.0f;
     style.ScrollbarSize     = 10.0f;
-    style.GrabMinSize       = 10.0f;
+    style.GrabMinSize       = 12.0f;
 
     ImVec4* colors = style.Colors;
     
-    // Base Colors (Near-Black Charcoal / Deep Dark Grey)
-    colors[ImGuiCol_Text]                  = ImVec4(0.96f, 0.97f, 0.99f, 1.00f); // Crisp White
-    colors[ImGuiCol_TextDisabled]          = ImVec4(0.46f, 0.50f, 0.58f, 1.00f); // Muted Slate Gray
-    colors[ImGuiCol_WindowBg]              = ImVec4(0.06f, 0.07f, 0.09f, 0.98f); // Charcoal #101217
-    colors[ImGuiCol_ChildBg]               = ImVec4(0.09f, 0.10f, 0.13f, 0.95f); // Card Dark Gray #171a21
-    colors[ImGuiCol_PopupBg]               = ImVec4(0.08f, 0.09f, 0.12f, 0.98f);
-    colors[ImGuiCol_Border]                = ImVec4(0.14f, 0.16f, 0.22f, 0.80f); // Clean Outline
+    // Material Dark Surface Elevation Palette
+    colors[ImGuiCol_Text]                  = ImVec4(0.96f, 0.97f, 1.00f, 1.00f); // Pure On-Surface White
+    colors[ImGuiCol_TextDisabled]          = ImVec4(0.56f, 0.60f, 0.70f, 1.00f); // Muted Secondary Text
+    colors[ImGuiCol_WindowBg]              = ImVec4(0.07f, 0.08f, 0.10f, 0.98f); // Surface #111318
+    colors[ImGuiCol_ChildBg]               = ImVec4(0.10f, 0.11f, 0.15f, 0.95f); // Surface Container #191c24
+    colors[ImGuiCol_PopupBg]               = ImVec4(0.11f, 0.12f, 0.17f, 0.98f);
+    colors[ImGuiCol_Border]                = ImVec4(0.18f, 0.20f, 0.27f, 0.75f); // Outline Variant #282e3c
     colors[ImGuiCol_BorderShadow]          = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
 
     // Frame (Inputs, Checkbox boxes, Slider tracks)
-    colors[ImGuiCol_FrameBg]               = ImVec4(0.12f, 0.14f, 0.18f, 0.85f); // Flat Deep Slate
-    colors[ImGuiCol_FrameBgHovered]        = ImVec4(0.16f, 0.19f, 0.25f, 1.00f);
-    colors[ImGuiCol_FrameBgActive]         = ImVec4(0.18f, 0.22f, 0.30f, 1.00f);
+    colors[ImGuiCol_FrameBg]               = ImVec4(0.13f, 0.15f, 0.20f, 0.85f); // Input Container
+    colors[ImGuiCol_FrameBgHovered]        = ImVec4(0.18f, 0.22f, 0.30f, 1.00f);
+    colors[ImGuiCol_FrameBgActive]         = ImVec4(0.22f, 0.26f, 0.36f, 1.00f);
 
     // Title Bar / Header
-    colors[ImGuiCol_TitleBg]               = ImVec4(0.06f, 0.07f, 0.09f, 1.00f);
-    colors[ImGuiCol_TitleBgActive]         = ImVec4(0.07f, 0.08f, 0.11f, 1.00f);
-    colors[ImGuiCol_TitleBgCollapsed]      = ImVec4(0.06f, 0.07f, 0.09f, 0.80f);
-    colors[ImGuiCol_MenuBarBg]             = ImVec4(0.08f, 0.09f, 0.12f, 1.00f);
+    colors[ImGuiCol_TitleBg]               = ImVec4(0.07f, 0.08f, 0.10f, 1.00f);
+    colors[ImGuiCol_TitleBgActive]         = ImVec4(0.08f, 0.09f, 0.12f, 1.00f);
+    colors[ImGuiCol_TitleBgCollapsed]      = ImVec4(0.07f, 0.08f, 0.10f, 0.80f);
+    colors[ImGuiCol_MenuBarBg]             = ImVec4(0.09f, 0.10f, 0.13f, 1.00f);
 
     // Scrollbar
-    colors[ImGuiCol_ScrollbarBg]           = ImVec4(0.06f, 0.07f, 0.09f, 0.50f);
-    colors[ImGuiCol_ScrollbarGrab]         = ImVec4(0.18f, 0.22f, 0.30f, 1.00f);
-    colors[ImGuiCol_ScrollbarGrabHovered]  = ImVec4(0.24f, 0.30f, 0.42f, 1.00f);
-    colors[ImGuiCol_ScrollbarGrabActive]   = ImVec4(0.00f, 0.52f, 1.00f, 1.00f); // Electric Blue
+    colors[ImGuiCol_ScrollbarBg]           = ImVec4(0.07f, 0.08f, 0.10f, 0.50f);
+    colors[ImGuiCol_ScrollbarGrab]         = ImVec4(0.18f, 0.21f, 0.28f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabHovered]  = ImVec4(0.25f, 0.30f, 0.40f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabActive]   = ImVec4(0.30f, 0.55f, 1.00f, 1.00f); // Google Blue Accent
 
-    // Vivid Electric Blue Accents (#0084ff / #1a90ff)
-    colors[ImGuiCol_CheckMark]             = ImVec4(0.00f, 0.55f, 1.00f, 1.00f); // Vivid Electric Blue
-    colors[ImGuiCol_SliderGrab]            = ImVec4(0.00f, 0.52f, 1.00f, 1.00f); // Electric Blue Grabber
-    colors[ImGuiCol_SliderGrabActive]      = ImVec4(0.25f, 0.70f, 1.00f, 1.00f); // Bright Blue Active
+    // Material Accent Colors (#4c8dff / #6ba3ff)
+    colors[ImGuiCol_CheckMark]             = ImVec4(0.30f, 0.55f, 1.00f, 1.00f); // Google Blue
+    colors[ImGuiCol_SliderGrab]            = ImVec4(0.30f, 0.55f, 1.00f, 1.00f); // Material Slider Grabber
+    colors[ImGuiCol_SliderGrabActive]      = ImVec4(0.48f, 0.70f, 1.00f, 1.00f); // Bright Blue Active
 
     // Buttons
-    colors[ImGuiCol_Button]                = ImVec4(0.12f, 0.14f, 0.19f, 0.90f);
-    colors[ImGuiCol_ButtonHovered]         = ImVec4(0.00f, 0.52f, 1.00f, 0.85f); // Glow Blue on hover
-    colors[ImGuiCol_ButtonActive]          = ImVec4(0.00f, 0.42f, 0.85f, 1.00f);
+    colors[ImGuiCol_Button]                = ImVec4(0.14f, 0.16f, 0.22f, 0.90f);
+    colors[ImGuiCol_ButtonHovered]         = ImVec4(0.20f, 0.35f, 0.60f, 0.95f); // Material Blue on hover
+    colors[ImGuiCol_ButtonActive]          = ImVec4(0.16f, 0.28f, 0.50f, 1.00f);
 
     // Headers & Navigation
-    colors[ImGuiCol_Header]                = ImVec4(0.13f, 0.16f, 0.22f, 0.80f);
-    colors[ImGuiCol_HeaderHovered]         = ImVec4(0.00f, 0.52f, 1.00f, 0.30f);
-    colors[ImGuiCol_HeaderActive]          = ImVec4(0.00f, 0.52f, 1.00f, 0.50f);
+    colors[ImGuiCol_Header]                = ImVec4(0.16f, 0.25f, 0.40f, 0.75f);
+    colors[ImGuiCol_HeaderHovered]         = ImVec4(0.20f, 0.32f, 0.52f, 0.90f);
+    colors[ImGuiCol_HeaderActive]          = ImVec4(0.25f, 0.40f, 0.65f, 1.00f);
 
     // Separators
-    colors[ImGuiCol_Separator]             = ImVec4(0.14f, 0.16f, 0.22f, 0.70f);
-    colors[ImGuiCol_SeparatorHovered]      = ImVec4(0.00f, 0.52f, 1.00f, 0.60f);
-    colors[ImGuiCol_SeparatorActive]       = ImVec4(0.00f, 0.52f, 1.00f, 1.00f);
+    colors[ImGuiCol_Separator]             = ImVec4(0.18f, 0.20f, 0.27f, 0.70f);
+    colors[ImGuiCol_SeparatorHovered]      = ImVec4(0.30f, 0.55f, 1.00f, 0.60f);
+    colors[ImGuiCol_SeparatorActive]       = ImVec4(0.30f, 0.55f, 1.00f, 1.00f);
 
     // Resize Grip
-    colors[ImGuiCol_ResizeGrip]            = ImVec4(0.14f, 0.16f, 0.22f, 0.40f);
-    colors[ImGuiCol_ResizeGripHovered]     = ImVec4(0.00f, 0.52f, 1.00f, 0.70f);
-    colors[ImGuiCol_ResizeGripActive]      = ImVec4(0.00f, 0.52f, 1.00f, 1.00f);
+    colors[ImGuiCol_ResizeGrip]            = ImVec4(0.18f, 0.20f, 0.27f, 0.40f);
+    colors[ImGuiCol_ResizeGripHovered]     = ImVec4(0.30f, 0.55f, 1.00f, 0.70f);
+    colors[ImGuiCol_ResizeGripActive]      = ImVec4(0.30f, 0.55f, 1.00f, 1.00f);
 
     // Tabs
-    colors[ImGuiCol_Tab]                   = ImVec4(0.08f, 0.09f, 0.12f, 1.00f);
-    colors[ImGuiCol_TabHovered]            = ImVec4(0.00f, 0.52f, 1.00f, 0.40f);
-    colors[ImGuiCol_TabActive]             = ImVec4(0.00f, 0.52f, 1.00f, 0.80f);
-    colors[ImGuiCol_TabUnfocused]          = ImVec4(0.07f, 0.08f, 0.10f, 1.00f);
-    colors[ImGuiCol_TabUnfocusedActive]    = ImVec4(0.10f, 0.12f, 0.16f, 1.00f);
+    colors[ImGuiCol_Tab]                   = ImVec4(0.09f, 0.10f, 0.14f, 1.00f);
+    colors[ImGuiCol_TabHovered]            = ImVec4(0.20f, 0.35f, 0.60f, 0.60f);
+    colors[ImGuiCol_TabActive]             = ImVec4(0.18f, 0.32f, 0.55f, 0.90f);
+    colors[ImGuiCol_TabUnfocused]          = ImVec4(0.08f, 0.09f, 0.12f, 1.00f);
+    colors[ImGuiCol_TabUnfocusedActive]    = ImVec4(0.12f, 0.14f, 0.20f, 1.00f);
 }
 
-// ─── Custom Styled Sidebar Navigation Button ─────────────────────────────────
-static bool DrawSidebarButton(const char* label, bool active, const char* icon = nullptr) {
+// ─── Custom Styled Material Navigation Pill Button ───────────────────────────
+static bool DrawMaterialNavButton(const char* label, bool active, const char* icon = nullptr) {
     ImGui::PushID(label);
     if (active) {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.00f, 0.45f, 0.90f, 0.95f)); // Vivid Electric Blue
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.10f, 0.55f, 1.00f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.00f, 0.38f, 0.80f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.18f, 0.32f, 0.56f, 0.95f)); // Material Active Pill
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.24f, 0.40f, 0.68f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.15f, 0.28f, 0.50f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
     } else {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.09f, 0.10f, 0.14f, 0.70f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.14f, 0.17f, 0.24f, 0.95f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.10f, 0.13f, 0.19f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.70f, 0.74f, 0.82f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.10f, 0.11f, 0.16f, 0.70f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.15f, 0.18f, 0.26f, 0.95f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.12f, 0.14f, 0.20f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.75f, 0.78f, 0.86f, 1.0f));
     }
 
     char displayBuf[128];
     if (icon && icon[0]) {
-        snprintf(displayBuf, sizeof(displayBuf), " %s  %s", icon, label);
+        snprintf(displayBuf, sizeof(displayBuf), "  %s  %s", icon, label);
     } else {
         snprintf(displayBuf, sizeof(displayBuf), "    %s", label);
     }
@@ -2283,9 +2299,36 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
             ImGuiIO& io = ImGui::GetIO();
             io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
             io.IniFilename  = nullptr;
-            io.FontGlobalScale = 1.30f;
+            io.FontGlobalScale = 1.0f;
 
-            ApplyMidnightTheme();
+            // Load Google Sans / Segoe UI / Modern System Fonts with High DPI Oversampling
+            ImFontConfig fontCfg;
+            fontCfg.OversampleH = 3;
+            fontCfg.OversampleV = 2;
+            fontCfg.RasterizerMultiply = 1.15f;
+
+            const char* fontCandidates[] = {
+                "C:\\Windows\\Fonts\\GoogleSans-Medium.ttf",
+                "C:\\Windows\\Fonts\\GoogleSans-Regular.ttf",
+                "C:\\Windows\\Fonts\\ProductSans-Regular.ttf",
+                "C:\\Windows\\Fonts\\segoeui.ttf",
+                "C:\\Windows\\Fonts\\SegoeUI.ttf",
+                "C:\\Windows\\Fonts\\arial.ttf"
+            };
+
+            bool fontLoaded = false;
+            for (const char* fpath : fontCandidates) {
+                if (GetFileAttributesA(fpath) != INVALID_FILE_ATTRIBUTES) {
+                    io.Fonts->AddFontFromFileTTF(fpath, 17.5f, &fontCfg);
+                    fontLoaded = true;
+                    break;
+                }
+            }
+            if (!fontLoaded) {
+                io.Fonts->AddFontDefault();
+            }
+
+            ApplyMaterialTheme();
 
             ImGui_ImplWin32_Init(g_hWnd);
             ImGui_ImplDX11_Init(g_pd3dDevice, g_pd3dDeviceContext);
@@ -2322,7 +2365,7 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
         // ── Teleportation & Auto-Shoot Kill Aura ──
         if (bEnableTeleportKill) DoTeleportKill(io);
 
-        // ── MIDNIGHT GUI Menu ──
+        // ── Material UI 3 Menu ──
         if (g_ShowMenu) {
             ImGui::SetNextWindowSize(ImVec2(1040.0f, 680.0f), ImGuiCond_FirstUseEver);
             ImGui::SetNextWindowPos(
@@ -2332,32 +2375,28 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
             );
 
             ImGuiWindowFlags winFlags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar;
-            ImGui::Begin("MIDNIGHT_MAIN_WINDOW", &g_ShowMenu, winFlags);
+            ImGui::Begin("MATERIAL_MAIN_WINDOW", &g_ShowMenu, winFlags);
 
-            // ── TOP NAVIGATION BAR ──
+            // ── TOP MATERIAL APP BAR ──
             ImGui::BeginChild("TopNavBar", ImVec2(0, 52), false, ImGuiWindowFlags_NoScrollbar);
             {
-                // Left: MIDNIGHT Branding
+                // Left: Google Material Branding
                 ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4.0f);
-                ImGui::TextColored(ImVec4(0.00f, 0.52f, 1.00f, 1.0f), "MIDNIGHT");
+                ImGui::TextColored(ImVec4(0.35f, 0.65f, 1.00f, 1.0f), "MIDNIGHT");
                 ImGui::SameLine();
                 ImGui::TextDisabled("|");
                 ImGui::SameLine();
 
-                // Navigation Tabs: GLOBALS & WEAPONS
-                ImVec2 curPos = ImGui::GetCursorPos();
-                
-                // GLOBALS Tab
+                // Navigation Tabs: GLOBALS & WEAPONS (Material Pill Tab style)
                 bool isGlobals = (iTopNavTab == 0);
                 if (isGlobals) {
                     ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "GLOBALS");
-                    // Electric Blue Underline Indicator
                     ImVec2 pMin = ImGui::GetItemRectMin();
                     ImVec2 pMax = ImGui::GetItemRectMax();
                     ImGui::GetWindowDrawList()->AddLine(
                         ImVec2(pMin.x - 2.0f, pMax.y + 4.0f),
                         ImVec2(pMax.x + 2.0f, pMax.y + 4.0f),
-                        ImGui::ColorConvertFloat4ToU32(ImVec4(0.00f, 0.52f, 1.00f, 1.0f)),
+                        ImGui::ColorConvertFloat4ToU32(ImVec4(0.35f, 0.65f, 1.00f, 1.0f)),
                         3.0f
                     );
                 } else {
@@ -2368,7 +2407,6 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
 
                 ImGui::SameLine(0, 24.0f);
 
-                // WEAPONS Tab
                 bool isWeapons = (iTopNavTab == 1);
                 if (isWeapons) {
                     ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "WEAPONS");
@@ -2377,13 +2415,13 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
                     ImGui::GetWindowDrawList()->AddLine(
                         ImVec2(pMin.x - 2.0f, pMax.y + 4.0f),
                         ImVec2(pMax.x + 2.0f, pMax.y + 4.0f),
-                        ImGui::ColorConvertFloat4ToU32(ImVec4(0.00f, 0.52f, 1.00f, 1.0f)),
+                        ImGui::ColorConvertFloat4ToU32(ImVec4(0.35f, 0.65f, 1.00f, 1.0f)),
                         3.0f
                     );
                 } else {
                     if (ImGui::Selectable("WEAPONS", false, 0, ImVec2(80, 20))) {
                         iTopNavTab = 1;
-                        g_CurrentTab = 2; // Weapon tab in sidebar
+                        g_CurrentTab = 2;
                     }
                 }
 
@@ -2394,7 +2432,7 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
 
                 ImGui::SameLine();
                 if (ImGui::Button("[Settings]", ImVec2(90, 28))) {
-                    g_CurrentTab = 5; // Diagnostics / Configs
+                    g_CurrentTab = 5;
                 }
 
                 ImGui::SameLine();
@@ -2405,47 +2443,47 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
             ImGui::Separator();
             ImGui::Spacing();
 
-            // ── LEFT NAVIGATION SIDEBAR ──
+            // ── LEFT MATERIAL NAVIGATION DRAWER ──
             ImGui::BeginChild("Sidebar", ImVec2(230, 0), true);
             {
-                ImGui::TextColored(ImVec4(0.00f, 0.52f, 1.00f, 1.0f), "COMBAT");
+                ImGui::TextColored(ImVec4(0.35f, 0.65f, 1.00f, 1.0f), "COMBAT");
                 ImGui::Spacing();
 
-                if (DrawSidebarButton("Aimbot",        g_CurrentTab == 1, "[>]")) { g_CurrentTab = 1; iTopNavTab = 0; }
-                if (DrawSidebarButton("Silent Aim",    g_CurrentTab == 10, "[+]")) { g_CurrentTab = 10; }
-                if (DrawSidebarButton("Mass Kill",     g_CurrentTab == 3, "[X]")) { g_CurrentTab = 3; }
-                if (DrawSidebarButton("Teleport Kill", g_CurrentTab == 11, "[^]")) { g_CurrentTab = 11; }
-
-                ImGui::Spacing();
-                ImGui::Separator();
-                ImGui::Spacing();
-
-                ImGui::TextColored(ImVec4(0.00f, 0.52f, 1.00f, 1.0f), "VISUALS");
-                ImGui::Spacing();
-
-                if (DrawSidebarButton("Player ESP",    g_CurrentTab == 0, "[o]")) { g_CurrentTab = 0; }
-                if (DrawSidebarButton("Skeletons & Glow", g_CurrentTab == 12, "[#]")) { g_CurrentTab = 12; }
-                if (DrawSidebarButton("Color Palette", g_CurrentTab == 4, "[*]")) { g_CurrentTab = 4; }
+                if (DrawMaterialNavButton("Aimbot",        g_CurrentTab == 1, "[>]")) { g_CurrentTab = 1; iTopNavTab = 0; }
+                if (DrawMaterialNavButton("Silent Aim",    g_CurrentTab == 10, "[+]")) { g_CurrentTab = 10; }
+                if (DrawMaterialNavButton("Mass Kill",     g_CurrentTab == 3, "[X]")) { g_CurrentTab = 3; }
+                if (DrawMaterialNavButton("Teleport Kill", g_CurrentTab == 11, "[^]")) { g_CurrentTab = 11; }
 
                 ImGui::Spacing();
                 ImGui::Separator();
                 ImGui::Spacing();
 
-                ImGui::TextColored(ImVec4(0.00f, 0.52f, 1.00f, 1.0f), "WEAPONS");
+                ImGui::TextColored(ImVec4(0.35f, 0.65f, 1.00f, 1.0f), "VISUALS");
                 ImGui::Spacing();
 
-                if (DrawSidebarButton("Weapon Spawner", g_CurrentTab == 2, "[~]")) { g_CurrentTab = 2; iTopNavTab = 1; }
-                if (DrawSidebarButton("Weapon Mods",    g_CurrentTab == 13, "[8]")) { g_CurrentTab = 13; }
+                if (DrawMaterialNavButton("Player ESP",    g_CurrentTab == 0, "[o]")) { g_CurrentTab = 0; }
+                if (DrawMaterialNavButton("Skeletons & Glow", g_CurrentTab == 12, "[#]")) { g_CurrentTab = 12; }
+                if (DrawMaterialNavButton("Color Palette", g_CurrentTab == 4, "[*]")) { g_CurrentTab = 4; }
 
                 ImGui::Spacing();
                 ImGui::Separator();
                 ImGui::Spacing();
 
-                ImGui::TextColored(ImVec4(0.00f, 0.52f, 1.00f, 1.0f), "MISC");
+                ImGui::TextColored(ImVec4(0.35f, 0.65f, 1.00f, 1.0f), "WEAPONS");
                 ImGui::Spacing();
 
-                if (DrawSidebarButton("God Mode",      g_CurrentTab == 14, "[!]")) { g_CurrentTab = 14; }
-                if (DrawSidebarButton("Configs",       g_CurrentTab == 5, "[?]")) { g_CurrentTab = 5; }
+                if (DrawMaterialNavButton("Weapon Spawner", g_CurrentTab == 2, "[~]")) { g_CurrentTab = 2; iTopNavTab = 1; }
+                if (DrawMaterialNavButton("Weapon Mods",    g_CurrentTab == 13, "[8]")) { g_CurrentTab = 13; }
+
+                ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Spacing();
+
+                ImGui::TextColored(ImVec4(0.35f, 0.65f, 1.00f, 1.0f), "MISC");
+                ImGui::Spacing();
+
+                if (DrawMaterialNavButton("God Mode",      g_CurrentTab == 14, "[!]")) { g_CurrentTab = 14; }
+                if (DrawMaterialNavButton("Configs",       g_CurrentTab == 5, "[?]")) { g_CurrentTab = 5; }
 
                 ImGui::Spacing();
                 ImGui::Separator();
@@ -2463,21 +2501,24 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
 
             ImGui::SameLine();
 
-            // ── MAIN CONTENT AREA (Rounded Cards Layout) ──
+            // ── MAIN MATERIAL CONTENT AREA (Dual Rounded Cards) ──
             ImGui::BeginChild("MainContent", ImVec2(0, 0), false);
             {
-                // ─── TAB: Aimbot & Combat Cards (Default Midnight View) ───────
+                // ─── TAB: Aimbot & Combat Cards ──────────────────────────────
                 if (g_CurrentTab == 1 || (iTopNavTab == 0 && g_CurrentTab == 1)) {
                     float halfWidth = (ImGui::GetContentRegionAvail().x - 12.0f) * 0.5f;
 
                     // ── LEFT CARD: "Aimbot" ──
-                    ImGui::BeginChild("CardAimbot", ImVec2(halfWidth, 380), true);
+                    ImGui::BeginChild("CardAimbot", ImVec2(halfWidth, 390), true);
                     {
                         ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Aimbot");
+                        ImGui::SameLine(ImGui::GetWindowWidth() - 95.0f);
+                        ImGui::TextColored(bEnableAimbot ? ImVec4(0.30f, 0.85f, 0.50f, 1.0f) : ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
+                                           bEnableAimbot ? "[ACTIVE]" : "[OFF]");
                         ImGui::Separator();
                         ImGui::Spacing();
 
-                        ImGui::Checkbox("Enable", &bEnableAimbot);
+                        ImGui::Checkbox("Enable Aimbot", &bEnableAimbot);
                         ImGui::Checkbox("Auto-fire", &bAimbotAutoFire);
                         ImGui::Checkbox("Disable aimbot while flashed", &bAimbotWhileFlashed);
                         ImGui::Checkbox("Disable aimbot through smoke", &bAimbotThroughSmoke);
@@ -2487,7 +2528,7 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
                         ImGui::Separator();
                         ImGui::Spacing();
 
-                        ImGui::SliderFloat("Kill delay", &fKillDelay, 0.0f, 1.0f, "%.3f");
+                        ImGui::SliderFloat("Kill delay", &fKillDelay, 0.0f, 1.0f, "%.3f s");
                         ImGui::SliderFloat("Mouse lock percentage x", &fMouseLockX, 0.0f, 1.0f, "%.3f");
                         ImGui::SliderFloat("Mouse lock percentage y", &fMouseLockY, 0.0f, 1.0f, "%.3f");
                         ImGui::SliderFloat("FOV Radius", &aimbotFOV, 20.0f, 500.0f, "%.1f px");
@@ -2498,16 +2539,18 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
                     ImGui::SameLine();
 
                     // ── RIGHT CARD: "Recoil" ──
-                    ImGui::BeginChild("CardRecoil", ImVec2(halfWidth, 380), true);
+                    ImGui::BeginChild("CardRecoil", ImVec2(halfWidth, 390), true);
                     {
-                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Recoil");
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Recoil Control");
+                        ImGui::SameLine(ImGui::GetWindowWidth() - 95.0f);
+                        ImGui::TextColored(bRecoilCompensation ? ImVec4(0.30f, 0.85f, 0.50f, 1.0f) : ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
+                                           bRecoilCompensation ? "[ACTIVE]" : "[OFF]");
                         ImGui::Separator();
                         ImGui::Spacing();
 
                         ImGui::Checkbox("Enable Recoil Control (RCS)", &bRecoilCompensation);
                         ImGui::Spacing();
 
-                        // Sliders in slightly inactive / greyed-out style
                         if (!bRecoilCompensation) {
                             ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.45f);
                         }
@@ -2525,7 +2568,7 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
                         ImGui::Separator();
                         ImGui::Spacing();
 
-                        ImGui::TextColored(ImVec4(0.00f, 0.52f, 1.00f, 1.0f), "Weapon Power Overrides");
+                        ImGui::TextColored(ImVec4(0.35f, 0.65f, 1.00f, 1.0f), "Weapon Power Overrides");
                         ImGui::Checkbox("Infinite Ammo (99,999)", &bInfiniteAmmo);
                         ImGui::Checkbox("One-Hit Kill Damage", &bOneHitKillDamage);
                         ImGui::Checkbox("Rapid Fire Rate", &bRapidFire);
@@ -2783,7 +2826,7 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
                         ImGui::Spacing();
 
                         if (g_ConfigStatus[0] != '\0' && (GetTickCount64() - g_ConfigStatusTime < 6000)) {
-                            ImGui::TextColored(ImVec4(0.00f, 0.52f, 1.00f, 1.0f), "%s", g_ConfigStatus);
+                            ImGui::TextColored(ImVec4(0.35f, 0.65f, 1.00f, 1.0f), "%s", g_ConfigStatus);
                             ImGui::Spacing();
                         }
 
@@ -2811,7 +2854,7 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
 
                         ImGui::Text("DirectX 11 Overlay : ");
                         ImGui::SameLine();
-                        ImGui::TextColored(ImVec4(0.00f, 0.52f, 1.00f, 1.0f), "HOOKED (Active)");
+                        ImGui::TextColored(ImVec4(0.35f, 0.65f, 1.00f, 1.0f), "HOOKED (Active)");
 
                         ImGui::Text("IL2CPP Engine API  : ");
                         ImGui::SameLine();
@@ -2832,7 +2875,7 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
                         ImGui::Separator();
                         ImGui::Spacing();
 
-                        ImGui::TextColored(ImVec4(0.00f, 0.52f, 1.00f, 1.0f), "Diagnostic Log Files:");
+                        ImGui::TextColored(ImVec4(0.35f, 0.65f, 1.00f, 1.0f), "Diagnostic Log Files:");
                         ImGui::BulletText("Cheat & Game Engine Log: XUYBYA_Cheat.log");
                         ImGui::BulletText("Crash & Access Violation: XUYBYA_Crash.log");
                         ImGui::BulletText("Injector Telemetry Log : XUYBYA_Injector.log");
