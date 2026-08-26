@@ -423,6 +423,25 @@ bool  bOneHitKillDamage   = true;
 bool  bRapidFire          = true;
 bool  bInfiniteRange      = true;
 
+// ─── Powerful Movement, Grapple & Camera Exploits ────────────────────────────
+bool  bEnableSpeedhack       = false;
+float fSpeedMultiplier       = 2.5f;
+bool  bEnableSuperJump       = false;
+float fJumpMultiplier        = 2.0f;
+bool  bInfiniteAirJump       = false;
+bool  bZeroGravity           = false;
+float fGravityMultiplier     = 1.0f;
+bool  bBunnyhop              = false;
+
+bool  bInfiniteGrappleRange  = false;
+bool  bSuperGrappleSpeed     = false;
+float fGrappleSpeedMult      = 2.5f;
+bool  bInstantGrappleBoost   = false;
+bool  bGrappleMagnetAim      = false;
+
+bool  bCustomFOV             = false;
+float fCustomFOVValue        = 100.0f;
+
 // ─── Config System ────────────────────────────────────────────────────────────
 static char g_ConfigStatus[128] = "";
 static ULONGLONG g_ConfigStatusTime = 0;
@@ -548,6 +567,23 @@ static void SaveConfig() {
     f << "bRapidFire=" << bRapidFire << "\n";
     f << "bInfiniteRange=" << bInfiniteRange << "\n";
 
+    f << "\n[Exploits]\n";
+    f << "bEnableSpeedhack=" << bEnableSpeedhack << "\n";
+    f << "fSpeedMultiplier=" << fSpeedMultiplier << "\n";
+    f << "bEnableSuperJump=" << bEnableSuperJump << "\n";
+    f << "fJumpMultiplier=" << fJumpMultiplier << "\n";
+    f << "bInfiniteAirJump=" << bInfiniteAirJump << "\n";
+    f << "bZeroGravity=" << bZeroGravity << "\n";
+    f << "fGravityMultiplier=" << fGravityMultiplier << "\n";
+    f << "bBunnyhop=" << bBunnyhop << "\n";
+    f << "bInfiniteGrappleRange=" << bInfiniteGrappleRange << "\n";
+    f << "bSuperGrappleSpeed=" << bSuperGrappleSpeed << "\n";
+    f << "fGrappleSpeedMult=" << fGrappleSpeedMult << "\n";
+    f << "bInstantGrappleBoost=" << bInstantGrappleBoost << "\n";
+    f << "bGrappleMagnetAim=" << bGrappleMagnetAim << "\n";
+    f << "bCustomFOV=" << bCustomFOV << "\n";
+    f << "fCustomFOVValue=" << fCustomFOVValue << "\n";
+
     f << "\n[Misc]\n";
     f << "bGodMode=" << bGodMode << "\n";
 
@@ -671,6 +707,24 @@ static void LoadConfig() {
             else if (key == "bRapidFire") bRapidFire = ParseBool(val);
             else if (key == "bInfiniteRange") bInfiniteRange = ParseBool(val);
 
+            else if (key == "bEnableSpeedhack") bEnableSpeedhack = ParseBool(val);
+            else if (key == "fSpeedMultiplier") fSpeedMultiplier = ParseFloat(val);
+            else if (key == "bEnableSuperJump") bEnableSuperJump = ParseBool(val);
+            else if (key == "fJumpMultiplier") fJumpMultiplier = ParseFloat(val);
+            else if (key == "bInfiniteAirJump") bInfiniteAirJump = ParseBool(val);
+            else if (key == "bZeroGravity") bZeroGravity = ParseBool(val);
+            else if (key == "fGravityMultiplier") fGravityMultiplier = ParseFloat(val);
+            else if (key == "bBunnyhop") bBunnyhop = ParseBool(val);
+
+            else if (key == "bInfiniteGrappleRange") bInfiniteGrappleRange = ParseBool(val);
+            else if (key == "bSuperGrappleSpeed") bSuperGrappleSpeed = ParseBool(val);
+            else if (key == "fGrappleSpeedMult") fGrappleSpeedMult = ParseFloat(val);
+            else if (key == "bInstantGrappleBoost") bInstantGrappleBoost = ParseBool(val);
+            else if (key == "bGrappleMagnetAim") bGrappleMagnetAim = ParseBool(val);
+
+            else if (key == "bCustomFOV") bCustomFOV = ParseBool(val);
+            else if (key == "fCustomFOVValue") fCustomFOVValue = ParseFloat(val);
+
             else if (key == "bGodMode") bGodMode = ParseBool(val);
         } catch (...) {}
     }
@@ -765,6 +819,24 @@ static void ResetConfigToDefaults() {
     bRapidFire          = true;
     bInfiniteRange      = true;
 
+    bEnableSpeedhack       = false;
+    fSpeedMultiplier       = 2.5f;
+    bEnableSuperJump       = false;
+    fJumpMultiplier        = 2.0f;
+    bInfiniteAirJump       = false;
+    bZeroGravity           = false;
+    fGravityMultiplier     = 1.0f;
+    bBunnyhop              = false;
+
+    bInfiniteGrappleRange  = false;
+    bSuperGrappleSpeed     = false;
+    fGrappleSpeedMult      = 2.5f;
+    bInstantGrappleBoost   = false;
+    bGrappleMagnetAim      = false;
+
+    bCustomFOV             = false;
+    fCustomFOVValue        = 100.0f;
+
     bGodMode            = false;
     SetConfigStatus("Reset all settings to default state.");
 }
@@ -813,22 +885,33 @@ LRESULT __stdcall WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
             g_ShowMenu = !g_ShowMenu;
             return 0;
         }
+        // If cheat menu is open and user presses ESC, close cheat menu without triggering game pause menu / settings
+        if (wParam == VK_ESCAPE && g_ShowMenu) {
+            g_ShowMenu = false;
+            return 0;
+        }
     }
     if (uMsg == WM_KEYUP || uMsg == WM_SYSKEYUP) {
         if (wParam == VK_INSERT || wParam == VK_F1) {
             return 0;
         }
+        if (wParam == VK_ESCAPE && g_ShowMenu) {
+            return 0;
+        }
     }
 
     if (g_ShowMenu) {
-        if (ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam))
+        ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam);
+
+        // When menu is active, swallow all mouse and keyboard messages so game UI buttons never get clicked through
+        if (uMsg >= WM_MOUSEFIRST && uMsg <= WM_MOUSELAST)
+            return 0;
+        if (uMsg >= WM_KEYFIRST && uMsg <= WM_KEYLAST)
+            return 0;
+        if (uMsg == WM_SETCURSOR)
             return 0;
 
-        ImGuiIO& io = ImGui::GetIO();
-        if (io.WantCaptureMouse && (uMsg >= WM_MOUSEFIRST && uMsg <= WM_MOUSELAST))
-            return 0;
-        if (io.WantCaptureKeyboard && (uMsg >= WM_KEYFIRST && uMsg <= WM_KEYLAST))
-            return 0;
+        return 0;
     }
 
     return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
@@ -2371,6 +2454,103 @@ static void DoMassKill() {
     }
 }
 
+// ─── Powerful Movement, Grapple & Camera Exploits ────────────────────────────
+static void DoExploits() {
+    if (!g_PlayerClass) return;
+
+    __try {
+        Il2CppArray* arr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
+        if (!arr) return;
+
+        uintptr_t count = *(uintptr_t*)((char*)arr + 0x18);
+        void** items = (void**)((char*)arr + 0x20);
+
+        void* localPlayer = nullptr;
+        for (uintptr_t i = 0; i < count; i++) {
+            void* p = items[i];
+            if (p && g_Il2Cpp.IsLocalPlayer(p)) {
+                localPlayer = p;
+                break;
+            }
+        }
+
+        if (!localPlayer || !g_Il2Cpp.IsGameObjectActiveInHierarchy(localPlayer)) return;
+
+        // 1. Movement & Physics Exploits
+        if (g_PlayerMovementClass) {
+            void* pm = g_Il2Cpp.GetComponent(localPlayer, g_PlayerMovementClass);
+            if (pm) {
+                if (bEnableSpeedhack) {
+                    *(float*)((char*)pm + 0x108) = 10.0f * fSpeedMultiplier;  // maxGroundSpeed
+                    *(float*)((char*)pm + 0x10C) = 150.0f * fSpeedMultiplier; // groundAcceleration
+                    *(float*)((char*)pm + 0x110) = 120.0f * fSpeedMultiplier; // maxGroundAccelForce
+                    *(float*)((char*)pm + 0x114) = 12.0f * fSpeedMultiplier;  // maxAirSpeed
+                    *(float*)((char*)pm + 0x118) = 150.0f * fSpeedMultiplier; // airAcceleration
+                    *(float*)((char*)pm + 0x11C) = 120.0f * fSpeedMultiplier; // maxAirAccelForce
+                }
+
+                if (bEnableSuperJump) {
+                    *(float*)((char*)pm + 0x13C) = 12.0f * fJumpMultiplier; // jumpForce
+                    *(float*)((char*)pm + 0x278) = 15.0f * fJumpMultiplier; // wallJumpForce
+                }
+
+                if (bInfiniteAirJump) {
+                    *(bool*)((char*)pm + 0x148) = true; // isGrounded
+                    *(float*)((char*)pm + 0x194) = 999.0f; // cayoteTime
+                }
+
+                if (bZeroGravity) {
+                    *(float*)((char*)pm + 0x1A8) = 0.0f; // gravityForce
+                    *(float*)((char*)pm + 0x238) = 0.0f; // Gravity
+                } else if (fGravityMultiplier != 1.0f) {
+                    *(float*)((char*)pm + 0x1A8) = 20.0f * fGravityMultiplier;
+                    *(float*)((char*)pm + 0x238) = 20.0f * fGravityMultiplier;
+                }
+
+                // 2. Grapple Exploits
+                void* lGrapple = *(void**)((char*)pm + 0x210); // _LGrapple
+                void* rGrapple = *(void**)((char*)pm + 0x218); // _RGrapple
+
+                void* hooks[2] = { lGrapple, rGrapple };
+                for (int h = 0; h < 2; h++) {
+                    void* hook = hooks[h];
+                    if (hook) {
+                        if (bInfiniteGrappleRange) {
+                            *(float*)((char*)hook + 0x120) = 9999.0f; // maxDistance
+                        }
+                        if (bSuperGrappleSpeed) {
+                            *(int*)((char*)hook + 0x150) = (int)(150 * fGrappleSpeedMult); // oneHookRetractForce
+                            *(int*)((char*)hook + 0x154) = (int)(250 * fGrappleSpeedMult); // twoHookRetractForce
+                        }
+                        if (bInstantGrappleBoost) {
+                            *(float*)((char*)hook + 0x1A0) = 0.0f; // grappleRate
+                            *(float*)((char*)hook + 0x1A8) = 0.0f; // grappleBoostCooldown
+                            *(bool*)((char*)hook + 0x1B0)  = true; // CanBoost
+                        }
+                        if (bGrappleMagnetAim) {
+                            *(float*)((char*)hook + 0x160) = 45.0f; // playerAimAssistSize
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Camera FOV Changer
+        if (bCustomFOV) {
+            void* cam = GetCurrentGameCamera();
+            if (cam && g_Il2Cpp.classCamera) {
+                MethodInfo* setFov = g_Il2Cpp.il2cpp_class_get_method_from_name(g_Il2Cpp.classCamera, "set_fieldOfView", 1);
+                if (setFov) {
+                    void* fovArgs[1] = { &fCustomFOVValue };
+                    void* exc = nullptr;
+                    g_Il2Cpp.il2cpp_runtime_invoke(setFov, cam, fovArgs, &exc);
+                }
+            }
+        }
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER) {}
+}
+
 // ─── Material UI 3 / Google Sans Dark Theme ─────────────────────────────────
 static void ApplyMaterialTheme() {
     ImGuiStyle& style = ImGui::GetStyle();
@@ -2507,13 +2687,13 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
             ImGuiIO& io = ImGui::GetIO();
             io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
             io.IniFilename  = nullptr;
-            io.FontGlobalScale = 1.0f;
+            io.FontGlobalScale = 1.05f;
 
-            // Load Google Sans / Segoe UI / Modern System Fonts with High DPI Oversampling
+            // Load Google Sans / Segoe UI / Modern System Fonts with High DPI Oversampling (Large, Crisp & Readable)
             ImFontConfig fontCfg;
             fontCfg.OversampleH = 3;
             fontCfg.OversampleV = 2;
-            fontCfg.RasterizerMultiply = 1.15f;
+            fontCfg.RasterizerMultiply = 1.18f;
 
             const char* fontCandidates[] = {
                 "C:\\Windows\\Fonts\\GoogleSans-Medium.ttf",
@@ -2527,7 +2707,7 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
             bool fontLoaded = false;
             for (const char* fpath : fontCandidates) {
                 if (GetFileAttributesA(fpath) != INVALID_FILE_ATTRIBUTES) {
-                    io.Fonts->AddFontFromFileTTF(fpath, 17.5f, &fontCfg);
+                    io.Fonts->AddFontFromFileTTF(fpath, 20.0f, &fontCfg);
                     fontLoaded = true;
                     break;
                 }
@@ -2556,6 +2736,7 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
         UpdateFrameESPData();
         DoGodMode();
         ApplyWeaponStatMods();
+        DoExploits();
         DoMassKill();
 
         ImGui_ImplDX11_NewFrame();
@@ -2960,46 +3141,71 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
                 }
 
                 // ═════════════════════════════════════════════════════════════
-                // TAB 3: EXPLOITS (TELEPORT KILL & MASS KILL)
+                // TAB 3: POWERFUL EXPLOITS (MOVEMENT, GRAPPLE, TELEPORT, MASS KILL)
                 // ═════════════════════════════════════════════════════════════
                 else if (iTopNavTab == 3) {
                     float halfWidth = (ImGui::GetContentRegionAvail().x - 12.0f) * 0.5f;
 
-                    // ── CARD 1: Mass Kill Server Annihilation ──
-                    ImGui::BeginChild("CardMassKill", ImVec2(halfWidth, 0), true);
+                    // ── CARD 1: Movement & Physics Exploits ──
+                    ImGui::BeginChild("CardMovementExploits", ImVec2(halfWidth, 310), true);
                     {
-                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Mass Kill Aura");
-                        ImGui::SameLine(ImGui::GetWindowWidth() - 95.0f);
-                        ImGui::TextColored(bEnableMassKill ? ImVec4(0.30f, 0.85f, 0.50f, 1.0f) : ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
-                                           bEnableMassKill ? "[ACTIVE]" : "[OFF]");
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Movement & Physics Exploits");
                         ImGui::Separator();
                         ImGui::Spacing();
 
-                        ImGui::Checkbox("Enable Mass Kill Aura", &bEnableMassKill);
+                        ImGui::Checkbox("Speedhack Multiplier", &bEnableSpeedhack);
+                        if (bEnableSpeedhack) {
+                            ImGui::SliderFloat("Speed Factor", &fSpeedMultiplier, 1.2f, 8.0f, "%.1fx");
+                        }
                         ImGui::Spacing();
 
-                        const char* mkModes[] = {
-                            "Direct Server Health Zero (RPC)",
-                            "Multi-Raycast Silent CMDShoot",
-                            "Hybrid Annihilation"
-                        };
-                        ImGui::Combo("Kill Exploit Mode", &iMassKillMode, mkModes, IM_ARRAYSIZE(mkModes));
-                        ImGui::SliderFloat("Kill Interval Rate", &fMassKillInterval, 20.0f, 500.0f, "%.0f ms");
-
-                        ImGui::Spacing();
-                        ImGui::Separator();
+                        ImGui::Checkbox("Super High Jump", &bEnableSuperJump);
+                        if (bEnableSuperJump) {
+                            ImGui::SliderFloat("Jump Force", &fJumpMultiplier, 1.2f, 6.0f, "%.1fx");
+                        }
                         ImGui::Spacing();
 
-                        if (ImGui::Button("WIPE ENTIRE SERVER NOW", ImVec2(-1, 48))) {
-                            DoMassKill();
+                        ImGui::Checkbox("Infinite Air Jump (Fly / Double Jump)", &bInfiniteAirJump);
+                        ImGui::TextDisabled("Allows jumping repeatedly in mid-air with Spacebar.");
+                        ImGui::Spacing();
+
+                        ImGui::Checkbox("Zero Gravity (Float / Moon Physics)", &bZeroGravity);
+                        if (!bZeroGravity) {
+                            ImGui::SliderFloat("Gravity Scale", &fGravityMultiplier, 0.1f, 3.0f, "%.2fx");
                         }
                     }
                     ImGui::EndChild();
 
                     ImGui::SameLine();
 
-                    // ── CARD 2: Teleport Kill Cycler ──
-                    ImGui::BeginChild("CardTeleport", ImVec2(halfWidth, 0), true);
+                    // ── CARD 2: Grapple Hook Exploits ──
+                    ImGui::BeginChild("CardGrappleExploits", ImVec2(halfWidth, 310), true);
+                    {
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Grappling Hook Exploits");
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        ImGui::Checkbox("Infinite Grapple Range (9,999m)", &bInfiniteGrappleRange);
+                        ImGui::TextDisabled("Hook onto surfaces & players from across the entire map.");
+                        ImGui::Spacing();
+
+                        ImGui::Checkbox("Super Grapple Reel Speed", &bSuperGrappleSpeed);
+                        if (bSuperGrappleSpeed) {
+                            ImGui::SliderFloat("Pull Speed Factor", &fGrappleSpeedMult, 1.5f, 8.0f, "%.1fx");
+                        }
+                        ImGui::Spacing();
+
+                        ImGui::Checkbox("Instant Grapple Boost & No Cooldown", &bInstantGrappleBoost);
+                        ImGui::Spacing();
+
+                        ImGui::Checkbox("Grapple Magnet Aim (Auto-Snap to Players)", &bGrappleMagnetAim);
+                    }
+                    ImGui::EndChild();
+
+                    ImGui::Spacing();
+
+                    // ── CARD 3: Teleport Kill Backstab Cycler ──
+                    ImGui::BeginChild("CardTeleportKill", ImVec2(halfWidth, 320), true);
                     {
                         ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Teleport Kill & Target Cycler");
                         ImGui::SameLine(ImGui::GetWindowWidth() - 95.0f);
@@ -3026,53 +3232,154 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
                         ImGui::Checkbox("Auto-Aim / LookAt Target", &bTeleportLookAt);
                     }
                     ImGui::EndChild();
+
+                    ImGui::SameLine();
+
+                    // ── CARD 4: Server Annihilation & Camera FOV ──
+                    ImGui::BeginChild("CardServerKill", ImVec2(halfWidth, 320), true);
+                    {
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Mass Kill Aura & Camera");
+                        ImGui::SameLine(ImGui::GetWindowWidth() - 95.0f);
+                        ImGui::TextColored(bEnableMassKill ? ImVec4(0.30f, 0.85f, 0.50f, 1.0f) : ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
+                                           bEnableMassKill ? "[ACTIVE]" : "[OFF]");
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        ImGui::Checkbox("Enable Mass Kill Aura", &bEnableMassKill);
+                        const char* mkModes[] = {
+                            "Direct Server Health Zero (RPC)",
+                            "Multi-Raycast Silent CMDShoot",
+                            "Hybrid Annihilation"
+                        };
+                        ImGui::Combo("Kill Exploit Mode", &iMassKillMode, mkModes, IM_ARRAYSIZE(mkModes));
+                        ImGui::SliderFloat("Kill Interval Rate", &fMassKillInterval, 20.0f, 500.0f, "%.0f ms");
+
+                        ImGui::Spacing();
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        ImGui::Checkbox("Custom Field of View (FOV Changer)", &bCustomFOV);
+                        if (bCustomFOV) {
+                            ImGui::SliderFloat("Camera FOV", &fCustomFOVValue, 60.0f, 140.0f, "%.0f deg");
+                        }
+
+                        ImGui::Spacing();
+                        if (ImGui::Button("WIPE ENTIRE SERVER NOW", ImVec2(-1, 38))) {
+                            DoMassKill();
+                        }
+                    }
+                    ImGui::EndChild();
                 }
 
                 // ═════════════════════════════════════════════════════════════
-                // TAB 4: COLOR PALETTE & STYLES
+                // TAB 4: INTERACTIVE RGB COLOR PICKER & THEME PALETTE
                 // ═════════════════════════════════════════════════════════════
                 else if (iTopNavTab == 4) {
                     float halfWidth = (ImGui::GetContentRegionAvail().x - 12.0f) * 0.5f;
 
-                    ImGui::BeginChild("CardColors1", ImVec2(halfWidth, 0), true);
+                    // ── CARD 1: Interactive Material RGB / HSV Color Picker ──
+                    ImGui::BeginChild("CardColorPicker", ImVec2(halfWidth, 0), true);
                     {
-                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "ESP Entity Colors");
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Interactive RGB Color Picker");
                         ImGui::Separator();
                         ImGui::Spacing();
 
-                        ImGui::ColorEdit4("Enemy / Target Color", colEnemy);
+                        static int iSelectedColorTarget = 0;
+                        const char* colorTargets[] = {
+                            "Enemy Visible (ESP & Glow)",
+                            "Teammate Visible",
+                            "Skeleton / Bone Structure",
+                            "Snaplines / Tracers",
+                            "Head Hitbox Circle",
+                            "Chams: Enemy Visible",
+                            "Chams: Enemy Occluded",
+                            "Chams: Team Visible",
+                            "Chams: Team Occluded"
+                        };
+                        ImGui::Combo("Select Target", &iSelectedColorTarget, colorTargets, IM_ARRAYSIZE(colorTargets));
                         ImGui::Spacing();
-                        ImGui::ColorEdit4("Teammate Color",      colTeam);
+
+                        float* currentEditingCol = colEnemy;
+                        switch (iSelectedColorTarget) {
+                            case 0: currentEditingCol = colEnemy; break;
+                            case 1: currentEditingCol = colTeam; break;
+                            case 2: currentEditingCol = colSkeleton; break;
+                            case 3: currentEditingCol = colTracers; break;
+                            case 4: currentEditingCol = colHeadCircle; break;
+                            case 5: currentEditingCol = colChamsEnemyVis; break;
+                            case 6: currentEditingCol = colChamsEnemyOcc; break;
+                            case 7: currentEditingCol = colChamsTeamVis; break;
+                            case 8: currentEditingCol = colChamsTeamOcc; break;
+                        }
+
+                        ImGuiColorEditFlags pickerFlags = ImGuiColorEditFlags_PickerHueWheel |
+                                                          ImGuiColorEditFlags_AlphaBar |
+                                                          ImGuiColorEditFlags_DisplayRGB |
+                                                          ImGuiColorEditFlags_DisplayHex |
+                                                          ImGuiColorEditFlags_AlphaPreviewHalf |
+                                                          ImGuiColorEditFlags_InputRGB;
+
+                        ImGui::ColorPicker4("##MainColorPicker", currentEditingCol, pickerFlags);
                         ImGui::Spacing();
-                        ImGui::ColorEdit4("Head Circle Color",    colHeadCircle);
+
+                        ImGui::TextColored(ImVec4(0.35f, 0.65f, 1.00f, 1.0f), "Quick Preset Swatches:");
+                        if (ImGui::Button("Electric Blue", ImVec2(100, 28))) { currentEditingCol[0]=0.20f; currentEditingCol[1]=0.70f; currentEditingCol[2]=1.00f; currentEditingCol[3]=1.0f; }
+                        ImGui::SameLine();
+                        if (ImGui::Button("Neon Crimson", ImVec2(100, 28))) { currentEditingCol[0]=1.00f; currentEditingCol[1]=0.22f; currentEditingCol[2]=0.35f; currentEditingCol[3]=1.0f; }
+                        ImGui::SameLine();
+                        if (ImGui::Button("Toxic Lime",   ImVec2(100, 28))) { currentEditingCol[0]=0.30f; currentEditingCol[1]=1.00f; currentEditingCol[2]=0.40f; currentEditingCol[3]=1.0f; }
+                        
+                        if (ImGui::Button("Acid Gold",    ImVec2(100, 28))) { currentEditingCol[0]=1.00f; currentEditingCol[1]=0.85f; currentEditingCol[2]=0.20f; currentEditingCol[3]=1.0f; }
+                        ImGui::SameLine();
+                        if (ImGui::Button("Cyber Purple", ImVec2(100, 28))) { currentEditingCol[0]=0.80f; currentEditingCol[1]=0.20f; currentEditingCol[2]=1.00f; currentEditingCol[3]=1.0f; }
+                        ImGui::SameLine();
+                        if (ImGui::Button("Pure White",   ImVec2(100, 28))) { currentEditingCol[0]=1.00f; currentEditingCol[1]=1.00f; currentEditingCol[2]=1.00f; currentEditingCol[3]=1.0f; }
                     }
                     ImGui::EndChild();
 
                     ImGui::SameLine();
 
-                    ImGui::BeginChild("CardColors2", ImVec2(halfWidth, 0), true);
+                    // ── CARD 2: Quick Palette Swatches & Palette Overview ──
+                    ImGui::BeginChild("CardColorPalette", ImVec2(halfWidth, 0), true);
                     {
-                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Chams & Lines");
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Theme Palette Overview");
                         ImGui::Separator();
                         ImGui::Spacing();
 
-                        ImGui::ColorEdit4("Skeleton Bone Color",  colSkeleton);
+                        ImGuiColorEditFlags miniEditFlags = ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_AlphaPreviewHalf;
+
+                        ImGui::ColorEdit4("Enemy / Target",        colEnemy, miniEditFlags);
                         ImGui::Spacing();
-                        ImGui::ColorEdit4("Tracer Snapline Color",colTracers);
+                        ImGui::ColorEdit4("Teammate",              colTeam, miniEditFlags);
                         ImGui::Spacing();
-                        ImGui::ColorEdit4("Chams Enemy Color",    colChamsEnemyVis);
+                        ImGui::ColorEdit4("Skeleton Bones",        colSkeleton, miniEditFlags);
                         ImGui::Spacing();
-                        ImGui::ColorEdit4("Chams Team Color",     colChamsTeamVis);
+                        ImGui::ColorEdit4("Snaplines / Tracers",   colTracers, miniEditFlags);
+                        ImGui::Spacing();
+                        ImGui::ColorEdit4("Head Hitbox",           colHeadCircle, miniEditFlags);
+                        ImGui::Spacing();
+                        ImGui::ColorEdit4("Chams Enemy (Visible)", colChamsEnemyVis, miniEditFlags);
+                        ImGui::Spacing();
+                        ImGui::ColorEdit4("Chams Enemy (Occluded)",colChamsEnemyOcc, miniEditFlags);
+                        ImGui::Spacing();
+                        ImGui::ColorEdit4("Chams Team (Visible)",  colChamsTeamVis, miniEditFlags);
+                        ImGui::Spacing();
+                        ImGui::ColorEdit4("Chams Team (Occluded)", colChamsTeamOcc, miniEditFlags);
+
+                        ImGui::Spacing();
+                        ImGui::Separator();
                         ImGui::Spacing();
 
-                        if (ImGui::Button("Reset All Colors to Default", ImVec2(-1, 38))) {
+                        if (ImGui::Button("RESET ALL COLORS TO FACTORY DEFAULT", ImVec2(-1, 38))) {
                             colEnemy[0] = 1.0f; colEnemy[1] = 0.22f; colEnemy[2] = 0.35f; colEnemy[3] = 1.0f;
                             colTeam[0]  = 0.20f; colTeam[1] = 0.70f; colTeam[2] = 1.00f; colTeam[3] = 1.0f;
                             colSkeleton[0] = 0.95f; colSkeleton[1] = 0.95f; colSkeleton[2] = 0.98f; colSkeleton[3] = 0.90f;
                             colTracers[0]  = 1.0f; colTracers[1] = 0.85f; colTracers[2] = 0.20f; colTracers[3] = 0.80f;
                             colHeadCircle[0]=1.0f; colHeadCircle[1]=0.35f; colHeadCircle[2]=0.50f; colHeadCircle[3]=1.0f;
                             colChamsEnemyVis[0]=1.0f; colChamsEnemyVis[1]=0.20f; colChamsEnemyVis[2]=0.40f; colChamsEnemyVis[3]=0.75f;
+                            colChamsEnemyOcc[0]=0.85f; colChamsEnemyOcc[1]=0.10f; colChamsEnemyOcc[2]=0.90f; colChamsEnemyOcc[3]=0.55f;
                             colChamsTeamVis[0]=0.20f; colChamsTeamVis[1]=0.70f; colChamsTeamVis[2]=1.00f; colChamsTeamVis[3]=0.75f;
+                            colChamsTeamOcc[0]=0.10f; colChamsTeamOcc[1]=0.40f; colChamsTeamOcc[2]=0.80f; colChamsTeamOcc[3]=0.50f;
                         }
                     }
                     ImGui::EndChild();
