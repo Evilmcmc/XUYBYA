@@ -1,0 +1,16 @@
+# Logs
+*.log
+XUYBYA_Cheat.log
+XUYBYA_Crash.log
+XUYBYA_Injector.log
+
+# Build intermediates & backups
+*.obj
+*.o
+*.pdb
+CheatDev/Cheat_new.dll
+
+# IDE & Editor
+.vs/
+.vscode/
+.idea/
