@@ -263,6 +263,31 @@ float aimbotFOV         = 150.0f;  // pixel radius from crosshair
 float aimbotSmooth      = 6.0f;
 float aimbotMaxSpeed    = 35.0f;   // Max pixel movement step per frame
 
+// Midnight Extended Combat Controls
+bool  bAimbotAutoFire        = true;
+bool  bAimbotWhileFlashed    = false;
+bool  bAimbotThroughSmoke    = false;
+float fKillDelay             = 0.300f;
+float fMouseLockX            = 1.000f;
+float fMouseLockY            = 1.000f;
+
+// Recoil Control System (RCS)
+bool  bRecoilCompensation    = false;
+int   iRecoilStartBullet     = 1;
+float fRecoilX               = 0.000f;
+float fRecoilY               = 0.000f;
+float fRecoilSmooth          = 1.000f;
+
+// Triggerbot
+bool  bTriggerbot            = false;
+bool  bTriggerbotHeadOnly    = false;
+float fTriggerbotDelay       = 0.050f;
+
+// Navigation & UI State
+int   iTopNavTab             = 0;       // 0: GLOBALS, 1: WEAPONS
+int   iSidebarCategory       = 0;       // 0: Combat, 1: Visuals, 2: Weapons, 3: Misc
+char  szSearchQuery[64]      = "";
+
 // Teleportation & Auto-Shoot Kill Aura
 bool  bEnableTeleportKill = false;
 bool  bTeleportHoldKey    = false;   // False: Always active when toggled, True: Hold hotkey
@@ -355,12 +380,30 @@ static void SaveConfig() {
 
     f << "\n[Combat]\n";
     f << "bEnableAimbot=" << bEnableAimbot << "\n";
+    f << "bAimbotAutoFire=" << bAimbotAutoFire << "\n";
+    f << "bAimbotWhileFlashed=" << bAimbotWhileFlashed << "\n";
+    f << "bAimbotThroughSmoke=" << bAimbotThroughSmoke << "\n";
+    f << "fKillDelay=" << fKillDelay << "\n";
+    f << "fMouseLockX=" << fMouseLockX << "\n";
+    f << "fMouseLockY=" << fMouseLockY << "\n";
     f << "iAimbotKey=" << iAimbotKey << "\n";
     f << "bDrawAimbotFOV=" << bDrawAimbotFOV << "\n";
     f << "iAimbotTarget=" << iAimbotTarget << "\n";
     f << "aimbotFOV=" << aimbotFOV << "\n";
     f << "aimbotSmooth=" << aimbotSmooth << "\n";
     f << "aimbotMaxSpeed=" << aimbotMaxSpeed << "\n";
+
+    f << "\n[Recoil]\n";
+    f << "bRecoilCompensation=" << bRecoilCompensation << "\n";
+    f << "iRecoilStartBullet=" << iRecoilStartBullet << "\n";
+    f << "fRecoilX=" << fRecoilX << "\n";
+    f << "fRecoilY=" << fRecoilY << "\n";
+    f << "fRecoilSmooth=" << fRecoilSmooth << "\n";
+
+    f << "\n[Triggerbot]\n";
+    f << "bTriggerbot=" << bTriggerbot << "\n";
+    f << "bTriggerbotHeadOnly=" << bTriggerbotHeadOnly << "\n";
+    f << "fTriggerbotDelay=" << fTriggerbotDelay << "\n";
 
     f << "\n[Teleport]\n";
     f << "bEnableTeleportKill=" << bEnableTeleportKill << "\n";
@@ -455,12 +498,28 @@ static void LoadConfig() {
             else if (key == "bSilentAimFull360") bSilentAimFull360 = ParseBool(val);
 
             else if (key == "bEnableAimbot") bEnableAimbot = ParseBool(val);
+            else if (key == "bAimbotAutoFire") bAimbotAutoFire = ParseBool(val);
+            else if (key == "bAimbotWhileFlashed") bAimbotWhileFlashed = ParseBool(val);
+            else if (key == "bAimbotThroughSmoke") bAimbotThroughSmoke = ParseBool(val);
+            else if (key == "fKillDelay") fKillDelay = ParseFloat(val);
+            else if (key == "fMouseLockX") fMouseLockX = ParseFloat(val);
+            else if (key == "fMouseLockY") fMouseLockY = ParseFloat(val);
             else if (key == "iAimbotKey") iAimbotKey = ParseInt(val);
             else if (key == "bDrawAimbotFOV") bDrawAimbotFOV = ParseBool(val);
             else if (key == "iAimbotTarget") iAimbotTarget = ParseInt(val);
             else if (key == "aimbotFOV") aimbotFOV = ParseFloat(val);
             else if (key == "aimbotSmooth") aimbotSmooth = ParseFloat(val);
             else if (key == "aimbotMaxSpeed") aimbotMaxSpeed = ParseFloat(val);
+
+            else if (key == "bRecoilCompensation") bRecoilCompensation = ParseBool(val);
+            else if (key == "iRecoilStartBullet") iRecoilStartBullet = ParseInt(val);
+            else if (key == "fRecoilX") fRecoilX = ParseFloat(val);
+            else if (key == "fRecoilY") fRecoilY = ParseFloat(val);
+            else if (key == "fRecoilSmooth") fRecoilSmooth = ParseFloat(val);
+
+            else if (key == "bTriggerbot") bTriggerbot = ParseBool(val);
+            else if (key == "bTriggerbotHeadOnly") bTriggerbotHeadOnly = ParseBool(val);
+            else if (key == "fTriggerbotDelay") fTriggerbotDelay = ParseFloat(val);
 
             else if (key == "bEnableTeleportKill") bEnableTeleportKill = ParseBool(val);
             else if (key == "bTeleportHoldKey") bTeleportHoldKey = ParseBool(val);
@@ -522,13 +581,29 @@ static void ResetConfigToDefaults() {
     bDrawSilentAimFOV = false;
     bSilentAimFull360 = true;
 
-    bEnableAimbot     = false;
-    iAimbotKey        = 0; // Alt
-    bDrawAimbotFOV    = false;
-    iAimbotTarget     = 0;
-    aimbotFOV         = 150.0f;
-    aimbotSmooth      = 6.0f;
-    aimbotMaxSpeed    = 35.0f;
+    bEnableAimbot        = false;
+    bAimbotAutoFire      = true;
+    bAimbotWhileFlashed  = false;
+    bAimbotThroughSmoke  = false;
+    fKillDelay           = 0.300f;
+    fMouseLockX          = 1.000f;
+    fMouseLockY          = 1.000f;
+    iAimbotKey           = 0; // Alt
+    bDrawAimbotFOV       = false;
+    iAimbotTarget        = 0;
+    aimbotFOV            = 150.0f;
+    aimbotSmooth         = 6.0f;
+    aimbotMaxSpeed       = 35.0f;
+
+    bRecoilCompensation  = false;
+    iRecoilStartBullet   = 1;
+    fRecoilX             = 0.000f;
+    fRecoilY             = 0.000f;
+    fRecoilSmooth        = 1.000f;
+
+    bTriggerbot          = false;
+    bTriggerbotHeadOnly  = false;
+    fTriggerbotDelay     = 0.050f;
 
     bEnableTeleportKill = false;
     bTeleportHoldKey    = false;
@@ -552,7 +627,7 @@ static void ResetConfigToDefaults() {
     bInfiniteRange      = true;
 
     bGodMode            = false;
-    SetConfigStatus("Reset all settings to default disabled state.");
+    SetConfigStatus("Reset all settings to default state.");
 }
 
 // ─── D3D11 hooks ──────────────────────────────────────────────────────────────
@@ -1815,50 +1890,95 @@ static void GiveWeapon(int weaponIndex) {
 }
 
 static void ApplyWeaponStatMods() {
-    if (!g_PlayerClass || !g_WeaponManagerClass) return;
-
     __try {
-        Il2CppArray* arr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
-        if (!arr) return;
+        // 1. Mod all Weapon instances across the scene
+        if (g_WeaponClass) {
+            Il2CppArray* wArr = g_Il2Cpp.FindObjectsOfType(g_WeaponClass);
+            if (wArr) {
+                uintptr_t wCount = *(uintptr_t*)((char*)wArr + 0x18);
+                void** wItems = (void**)((char*)wArr + 0x20);
+                for (uintptr_t i = 0; i < wCount; i++) {
+                    void* w = wItems[i];
+                    if (!w) continue;
 
-        uintptr_t count = *(uintptr_t*)((char*)arr + 0x18);
-        void** items = (void**)((char*)arr + 0x20);
+                    *(bool*)((char*)w + 0x120) = true; // canShoot
 
-        for (uintptr_t i = 0; i < count; i++) {
-            void* p = items[i];
-            if (p && g_Il2Cpp.IsLocalPlayer(p)) {
-                void* wm = g_Il2Cpp.GetComponent(p, g_WeaponManagerClass);
-                if (wm) {
-                    void* activeWeapon = *(void**)((char*)wm + 0x120);
-                    if (activeWeapon) {
-                        *(bool*)((char*)activeWeapon + 0x120) = true; // canShoot
+                    if (bInfiniteAmmo) {
+                        *(int*)((char*)w + 0x114) = 99999; // currentAmmo
+                    }
+                    if (bRapidFire) {
+                        *(float*)((char*)w + 0x110) = 0.0f; // nextTimeToFire
+                    }
 
-                        if (bInfiniteAmmo) {
-                            *(int*)((char*)activeWeapon + 0x114) = 99999;
+                    void* wData = *(void**)((char*)w + 0x100);
+                    if (wData) {
+                        if (bOneHitKillDamage) {
+                            *(int*)((char*)wData + 0x18) = 99999; // minimumDamage
+                            *(int*)((char*)wData + 0x1C) = 99999; // maximumDamage
+                        }
+                        if (bInfiniteRange) {
+                            *(float*)((char*)wData + 0x20) = 9999.0f; // range
                         }
                         if (bRapidFire) {
-                            *(float*)((char*)activeWeapon + 0x110) = 0.0f;
+                            *(float*)((char*)wData + 0x24) = 0.001f; // attackRate
                         }
-
-                        void* wData = *(void**)((char*)activeWeapon + 0x100);
-                        if (wData) {
-                            if (bOneHitKillDamage) {
-                                *(int*)((char*)wData + 0x18) = 99999; // minimumDamage
-                                *(int*)((char*)wData + 0x1C) = 99999; // maximumDamage
-                            }
-                            if (bInfiniteRange) {
-                                *(float*)((char*)wData + 0x20) = 9999.0f; // range
-                            }
-                            if (bRapidFire) {
-                                *(float*)((char*)wData + 0x24) = 0.005f; // attackRate
-                            }
-                            if (bInfiniteAmmo) {
-                                *(int*)((char*)wData + 0x30) = 99999; // maximumAttacks
-                            }
+                        if (bInfiniteAmmo) {
+                            *(int*)((char*)wData + 0x30) = 99999; // maximumAttacks
                         }
                     }
                 }
-                break;
+            }
+        }
+
+        // 2. Target Local Player's WeaponManager directly
+        if (g_PlayerClass && g_WeaponManagerClass) {
+            Il2CppArray* pArr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
+            if (pArr) {
+                uintptr_t pCount = *(uintptr_t*)((char*)pArr + 0x18);
+                void** pItems = (void**)((char*)pArr + 0x20);
+
+                for (uintptr_t i = 0; i < pCount; i++) {
+                    void* p = pItems[i];
+                    if (p && g_Il2Cpp.IsLocalPlayer(p)) {
+                        void* wm = g_Il2Cpp.GetComponent(p, g_WeaponManagerClass);
+                        if (wm) {
+                            void* activeWeapon = *(void**)((char*)wm + 0x120);
+                            if (activeWeapon) {
+                                *(bool*)((char*)activeWeapon + 0x120) = true;
+                                if (bInfiniteAmmo) *(int*)((char*)activeWeapon + 0x114) = 99999;
+                                if (bRapidFire)    *(float*)((char*)activeWeapon + 0x110) = 0.0f;
+                            }
+
+                            void* wList = *(void**)((char*)wm + 0x110);
+                            if (wList) {
+                                Il2CppArray* itemsArr = *(Il2CppArray**)((char*)wList + 0x10);
+                                int listSize = *(int*)((char*)wList + 0x18);
+                                if (itemsArr && listSize > 0) {
+                                    void** wObjs = (void**)((char*)itemsArr + 0x20);
+                                    for (int w = 0; w < listSize; w++) {
+                                        void* weaponObj = wObjs[w];
+                                        if (weaponObj) {
+                                            *(bool*)((char*)weaponObj + 0x120) = true;
+                                            if (bInfiniteAmmo) *(int*)((char*)weaponObj + 0x114) = 99999;
+                                            if (bRapidFire)    *(float*)((char*)weaponObj + 0x110) = 0.0f;
+                                            void* wd = *(void**)((char*)weaponObj + 0x100);
+                                            if (wd) {
+                                                if (bOneHitKillDamage) {
+                                                    *(int*)((char*)wd + 0x18) = 99999;
+                                                    *(int*)((char*)wd + 0x1C) = 99999;
+                                                }
+                                                if (bInfiniteRange) *(float*)((char*)wd + 0x20) = 9999.0f;
+                                                if (bRapidFire)    *(float*)((char*)wd + 0x24) = 0.001f;
+                                                if (bInfiniteAmmo) *(int*)((char*)wd + 0x30) = 99999;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        break;
+                    }
+                }
             }
         }
     }
@@ -2027,86 +2147,117 @@ static void DoMassKill() {
     }
 }
 
-// ─── Luxury High-End Dark Theme (Scaled & Spaced) ───────────────────────────
-static void ApplyModernTheme() {
+// ─── Luxury Flat-Design Dark Mode MIDNIGHT Theme ────────────────────────────
+static void ApplyMidnightTheme() {
     ImGuiStyle& style = ImGui::GetStyle();
-    style.WindowPadding     = ImVec2(22, 22);
-    style.FramePadding      = ImVec2(14, 9);
-    style.ItemSpacing       = ImVec2(14, 12);
-    style.ItemInnerSpacing  = ImVec2(10, 8);
-    style.IndentSpacing     = 24.0f;
-    style.ScrollbarSize     = 12.0f;
-    style.GrabMinSize       = 16.0f;
+    
+    style.WindowRounding    = 8.0f;
+    style.ChildRounding     = 6.0f;
+    style.FrameRounding     = 4.0f;
+    style.PopupRounding     = 6.0f;
+    style.ScrollbarRounding = 6.0f;
+    style.GrabRounding      = 4.0f;
+    style.TabRounding       = 4.0f;
 
-    style.WindowRounding    = 14.0f;
-    style.ChildRounding     = 10.0f;
-    style.FrameRounding     = 8.0f;
-    style.PopupRounding     = 10.0f;
-    style.ScrollbarRounding = 8.0f;
-    style.GrabRounding      = 8.0f;
-    style.TabRounding       = 8.0f;
-
-    style.WindowBorderSize  = 1.5f;
+    style.WindowBorderSize  = 1.0f;
     style.ChildBorderSize   = 1.0f;
+    style.PopupBorderSize   = 1.0f;
     style.FrameBorderSize   = 0.0f;
 
+    style.WindowPadding     = ImVec2(16.0f, 16.0f);
+    style.FramePadding      = ImVec2(10.0f, 6.0f);
+    style.ItemSpacing       = ImVec2(10.0f, 8.0f);
+    style.ItemInnerSpacing  = ImVec2(6.0f, 6.0f);
+    style.IndentSpacing     = 20.0f;
+    style.ScrollbarSize     = 10.0f;
+    style.GrabMinSize       = 10.0f;
+
     ImVec4* colors = style.Colors;
-    colors[ImGuiCol_Text]                  = ImVec4(0.96f, 0.97f, 0.99f, 1.00f);
-    colors[ImGuiCol_TextDisabled]          = ImVec4(0.50f, 0.54f, 0.64f, 1.00f);
-    colors[ImGuiCol_WindowBg]              = ImVec4(0.06f, 0.07f, 0.11f, 0.97f);
-    colors[ImGuiCol_ChildBg]               = ImVec4(0.09f, 0.10f, 0.16f, 0.88f);
-    colors[ImGuiCol_PopupBg]               = ImVec4(0.08f, 0.09f, 0.14f, 0.98f);
-    colors[ImGuiCol_Border]                = ImVec4(0.24f, 0.28f, 0.42f, 0.65f);
+    
+    // Base Colors (Near-Black Charcoal / Deep Dark Grey)
+    colors[ImGuiCol_Text]                  = ImVec4(0.96f, 0.97f, 0.99f, 1.00f); // Crisp White
+    colors[ImGuiCol_TextDisabled]          = ImVec4(0.46f, 0.50f, 0.58f, 1.00f); // Muted Slate Gray
+    colors[ImGuiCol_WindowBg]              = ImVec4(0.06f, 0.07f, 0.09f, 0.98f); // Charcoal #101217
+    colors[ImGuiCol_ChildBg]               = ImVec4(0.09f, 0.10f, 0.13f, 0.95f); // Card Dark Gray #171a21
+    colors[ImGuiCol_PopupBg]               = ImVec4(0.08f, 0.09f, 0.12f, 0.98f);
+    colors[ImGuiCol_Border]                = ImVec4(0.14f, 0.16f, 0.22f, 0.80f); // Clean Outline
     colors[ImGuiCol_BorderShadow]          = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-    colors[ImGuiCol_FrameBg]               = ImVec4(0.13f, 0.15f, 0.23f, 0.95f);
-    colors[ImGuiCol_FrameBgHovered]        = ImVec4(0.22f, 0.26f, 0.40f, 1.00f);
-    colors[ImGuiCol_FrameBgActive]         = ImVec4(0.30f, 0.35f, 0.54f, 1.00f);
-    colors[ImGuiCol_TitleBg]               = ImVec4(0.05f, 0.06f, 0.09f, 1.00f);
-    colors[ImGuiCol_TitleBgActive]         = ImVec4(0.08f, 0.10f, 0.16f, 1.00f);
-    colors[ImGuiCol_TitleBgCollapsed]      = ImVec4(0.05f, 0.06f, 0.09f, 0.75f);
-    colors[ImGuiCol_MenuBarBg]             = ImVec4(0.08f, 0.09f, 0.14f, 1.00f);
-    colors[ImGuiCol_ScrollbarBg]           = ImVec4(0.06f, 0.07f, 0.10f, 0.60f);
-    colors[ImGuiCol_ScrollbarGrab]         = ImVec4(0.26f, 0.30f, 0.45f, 1.00f);
-    colors[ImGuiCol_ScrollbarGrabHovered]  = ImVec4(0.38f, 0.44f, 0.65f, 1.00f);
-    colors[ImGuiCol_ScrollbarGrabActive]   = ImVec4(0.48f, 0.55f, 0.80f, 1.00f);
-    colors[ImGuiCol_CheckMark]             = ImVec4(0.35f, 0.80f, 1.00f, 1.00f);
-    colors[ImGuiCol_SliderGrab]            = ImVec4(0.35f, 0.80f, 1.00f, 1.00f);
-    colors[ImGuiCol_SliderGrabActive]      = ImVec4(0.55f, 0.90f, 1.00f, 1.00f);
-    colors[ImGuiCol_Button]                = ImVec4(0.16f, 0.19f, 0.30f, 1.00f);
-    colors[ImGuiCol_ButtonHovered]         = ImVec4(0.28f, 0.34f, 0.54f, 1.00f);
-    colors[ImGuiCol_ButtonActive]          = ImVec4(0.38f, 0.46f, 0.70f, 1.00f);
-    colors[ImGuiCol_Header]                = ImVec4(0.18f, 0.22f, 0.36f, 1.00f);
-    colors[ImGuiCol_HeaderHovered]         = ImVec4(0.28f, 0.34f, 0.54f, 1.00f);
-    colors[ImGuiCol_HeaderActive]          = ImVec4(0.36f, 0.44f, 0.68f, 1.00f);
-    colors[ImGuiCol_Separator]             = ImVec4(0.22f, 0.25f, 0.38f, 0.65f);
-    colors[ImGuiCol_SeparatorHovered]      = ImVec4(0.36f, 0.42f, 0.62f, 1.00f);
-    colors[ImGuiCol_SeparatorActive]       = ImVec4(0.48f, 0.56f, 0.82f, 1.00f);
-    colors[ImGuiCol_ResizeGrip]            = ImVec4(0.18f, 0.22f, 0.34f, 0.50f);
-    colors[ImGuiCol_ResizeGripHovered]     = ImVec4(0.36f, 0.42f, 0.62f, 0.75f);
-    colors[ImGuiCol_ResizeGripActive]      = ImVec4(0.48f, 0.56f, 0.82f, 1.00f);
-    colors[ImGuiCol_Tab]                   = ImVec4(0.10f, 0.12f, 0.18f, 1.00f);
-    colors[ImGuiCol_TabHovered]            = ImVec4(0.28f, 0.34f, 0.54f, 1.00f);
-    colors[ImGuiCol_TabActive]             = ImVec4(0.22f, 0.28f, 0.44f, 1.00f);
-    colors[ImGuiCol_TabUnfocused]          = ImVec4(0.08f, 0.09f, 0.14f, 1.00f);
-    colors[ImGuiCol_TabUnfocusedActive]    = ImVec4(0.14f, 0.17f, 0.26f, 1.00f);
+
+    // Frame (Inputs, Checkbox boxes, Slider tracks)
+    colors[ImGuiCol_FrameBg]               = ImVec4(0.12f, 0.14f, 0.18f, 0.85f); // Flat Deep Slate
+    colors[ImGuiCol_FrameBgHovered]        = ImVec4(0.16f, 0.19f, 0.25f, 1.00f);
+    colors[ImGuiCol_FrameBgActive]         = ImVec4(0.18f, 0.22f, 0.30f, 1.00f);
+
+    // Title Bar / Header
+    colors[ImGuiCol_TitleBg]               = ImVec4(0.06f, 0.07f, 0.09f, 1.00f);
+    colors[ImGuiCol_TitleBgActive]         = ImVec4(0.07f, 0.08f, 0.11f, 1.00f);
+    colors[ImGuiCol_TitleBgCollapsed]      = ImVec4(0.06f, 0.07f, 0.09f, 0.80f);
+    colors[ImGuiCol_MenuBarBg]             = ImVec4(0.08f, 0.09f, 0.12f, 1.00f);
+
+    // Scrollbar
+    colors[ImGuiCol_ScrollbarBg]           = ImVec4(0.06f, 0.07f, 0.09f, 0.50f);
+    colors[ImGuiCol_ScrollbarGrab]         = ImVec4(0.18f, 0.22f, 0.30f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabHovered]  = ImVec4(0.24f, 0.30f, 0.42f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabActive]   = ImVec4(0.00f, 0.52f, 1.00f, 1.00f); // Electric Blue
+
+    // Vivid Electric Blue Accents (#0084ff / #1a90ff)
+    colors[ImGuiCol_CheckMark]             = ImVec4(0.00f, 0.55f, 1.00f, 1.00f); // Vivid Electric Blue
+    colors[ImGuiCol_SliderGrab]            = ImVec4(0.00f, 0.52f, 1.00f, 1.00f); // Electric Blue Grabber
+    colors[ImGuiCol_SliderGrabActive]      = ImVec4(0.25f, 0.70f, 1.00f, 1.00f); // Bright Blue Active
+
+    // Buttons
+    colors[ImGuiCol_Button]                = ImVec4(0.12f, 0.14f, 0.19f, 0.90f);
+    colors[ImGuiCol_ButtonHovered]         = ImVec4(0.00f, 0.52f, 1.00f, 0.85f); // Glow Blue on hover
+    colors[ImGuiCol_ButtonActive]          = ImVec4(0.00f, 0.42f, 0.85f, 1.00f);
+
+    // Headers & Navigation
+    colors[ImGuiCol_Header]                = ImVec4(0.13f, 0.16f, 0.22f, 0.80f);
+    colors[ImGuiCol_HeaderHovered]         = ImVec4(0.00f, 0.52f, 1.00f, 0.30f);
+    colors[ImGuiCol_HeaderActive]          = ImVec4(0.00f, 0.52f, 1.00f, 0.50f);
+
+    // Separators
+    colors[ImGuiCol_Separator]             = ImVec4(0.14f, 0.16f, 0.22f, 0.70f);
+    colors[ImGuiCol_SeparatorHovered]      = ImVec4(0.00f, 0.52f, 1.00f, 0.60f);
+    colors[ImGuiCol_SeparatorActive]       = ImVec4(0.00f, 0.52f, 1.00f, 1.00f);
+
+    // Resize Grip
+    colors[ImGuiCol_ResizeGrip]            = ImVec4(0.14f, 0.16f, 0.22f, 0.40f);
+    colors[ImGuiCol_ResizeGripHovered]     = ImVec4(0.00f, 0.52f, 1.00f, 0.70f);
+    colors[ImGuiCol_ResizeGripActive]      = ImVec4(0.00f, 0.52f, 1.00f, 1.00f);
+
+    // Tabs
+    colors[ImGuiCol_Tab]                   = ImVec4(0.08f, 0.09f, 0.12f, 1.00f);
+    colors[ImGuiCol_TabHovered]            = ImVec4(0.00f, 0.52f, 1.00f, 0.40f);
+    colors[ImGuiCol_TabActive]             = ImVec4(0.00f, 0.52f, 1.00f, 0.80f);
+    colors[ImGuiCol_TabUnfocused]          = ImVec4(0.07f, 0.08f, 0.10f, 1.00f);
+    colors[ImGuiCol_TabUnfocusedActive]    = ImVec4(0.10f, 0.12f, 0.16f, 1.00f);
 }
 
-// ─── Custom Styled Tab Button ────────────────────────────────────────────────
-static bool DrawTabButton(const char* label, bool active, const ImVec2& size) {
+// ─── Custom Styled Sidebar Navigation Button ─────────────────────────────────
+static bool DrawSidebarButton(const char* label, bool active, const char* icon = nullptr) {
+    ImGui::PushID(label);
     if (active) {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.24f, 0.38f, 0.68f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.46f, 0.78f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.20f, 0.32f, 0.60f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.00f, 0.45f, 0.90f, 0.95f)); // Vivid Electric Blue
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.10f, 0.55f, 1.00f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.00f, 0.38f, 0.80f, 1.0f));
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
     } else {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.11f, 0.13f, 0.20f, 0.88f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.18f, 0.23f, 0.35f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.14f, 0.18f, 0.28f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.72f, 0.76f, 0.88f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.09f, 0.10f, 0.14f, 0.70f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.14f, 0.17f, 0.24f, 0.95f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.10f, 0.13f, 0.19f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.70f, 0.74f, 0.82f, 1.0f));
     }
 
-    bool clicked = ImGui::Button(label, size);
+    char displayBuf[128];
+    if (icon && icon[0]) {
+        snprintf(displayBuf, sizeof(displayBuf), " %s  %s", icon, label);
+    } else {
+        snprintf(displayBuf, sizeof(displayBuf), "    %s", label);
+    }
+
+    bool clicked = ImGui::Button(displayBuf, ImVec2(-1, 38));
     ImGui::PopStyleColor(4);
+    ImGui::PopID();
     return clicked;
 }
 
@@ -2132,9 +2283,9 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
             ImGuiIO& io = ImGui::GetIO();
             io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
             io.IniFilename  = nullptr;
-            io.FontGlobalScale = 1.35f;
+            io.FontGlobalScale = 1.30f;
 
-            ApplyModernTheme();
+            ApplyMidnightTheme();
 
             ImGui_ImplWin32_Init(g_hWnd);
             ImGui_ImplDX11_Init(g_pd3dDevice, g_pd3dDeviceContext);
@@ -2171,75 +2322,139 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
         // ── Teleportation & Auto-Shoot Kill Aura ──
         if (bEnableTeleportKill) DoTeleportKill(io);
 
-        // ── GUI Menu (EXTRA LARGE, CENTERED, LUXURY DASHBOARD) ──
+        // ── MIDNIGHT GUI Menu ──
         if (g_ShowMenu) {
-            ImGui::SetNextWindowSize(ImVec2(1080.0f, 720.0f), ImGuiCond_FirstUseEver);
+            ImGui::SetNextWindowSize(ImVec2(1040.0f, 680.0f), ImGuiCond_FirstUseEver);
             ImGui::SetNextWindowPos(
                 ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f),
                 ImGuiCond_FirstUseEver,
                 ImVec2(0.5f, 0.5f)
             );
 
-            ImGuiWindowFlags winFlags = ImGuiWindowFlags_NoCollapse;
-            ImGui::Begin("XUYBYA // Grapples Galore Suite", &g_ShowMenu, winFlags);
+            ImGuiWindowFlags winFlags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar;
+            ImGui::Begin("MIDNIGHT_MAIN_WINDOW", &g_ShowMenu, winFlags);
 
-            // Top Header Bar
-            ImGui::BeginChild("HeaderBar", ImVec2(0, 56), true);
+            // ── TOP NAVIGATION BAR ──
+            ImGui::BeginChild("TopNavBar", ImVec2(0, 52), false, ImGuiWindowFlags_NoScrollbar);
             {
-                ImGui::TextColored(ImVec4(0.35f, 0.85f, 1.0f, 1.0f), "XUYBYA");
+                // Left: MIDNIGHT Branding
+                ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4.0f);
+                ImGui::TextColored(ImVec4(0.00f, 0.52f, 1.00f, 1.0f), "MIDNIGHT");
                 ImGui::SameLine();
-                ImGui::TextDisabled("|  Grapples Galore Combat, Weapons & Visual Suite");
+                ImGui::TextDisabled("|");
+                ImGui::SameLine();
 
-                ImGui::SameLine(ImGui::GetWindowWidth() - 240.0f);
-                ImGui::TextColored(ImVec4(0.40f, 1.0f, 0.50f, 1.0f), "[ACTIVE]");
+                // Navigation Tabs: GLOBALS & WEAPONS
+                ImVec2 curPos = ImGui::GetCursorPos();
+                
+                // GLOBALS Tab
+                bool isGlobals = (iTopNavTab == 0);
+                if (isGlobals) {
+                    ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "GLOBALS");
+                    // Electric Blue Underline Indicator
+                    ImVec2 pMin = ImGui::GetItemRectMin();
+                    ImVec2 pMax = ImGui::GetItemRectMax();
+                    ImGui::GetWindowDrawList()->AddLine(
+                        ImVec2(pMin.x - 2.0f, pMax.y + 4.0f),
+                        ImVec2(pMax.x + 2.0f, pMax.y + 4.0f),
+                        ImGui::ColorConvertFloat4ToU32(ImVec4(0.00f, 0.52f, 1.00f, 1.0f)),
+                        3.0f
+                    );
+                } else {
+                    if (ImGui::Selectable("GLOBALS", false, 0, ImVec2(70, 20))) {
+                        iTopNavTab = 0;
+                    }
+                }
+
+                ImGui::SameLine(0, 24.0f);
+
+                // WEAPONS Tab
+                bool isWeapons = (iTopNavTab == 1);
+                if (isWeapons) {
+                    ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "WEAPONS");
+                    ImVec2 pMin = ImGui::GetItemRectMin();
+                    ImVec2 pMax = ImGui::GetItemRectMax();
+                    ImGui::GetWindowDrawList()->AddLine(
+                        ImVec2(pMin.x - 2.0f, pMax.y + 4.0f),
+                        ImVec2(pMax.x + 2.0f, pMax.y + 4.0f),
+                        ImGui::ColorConvertFloat4ToU32(ImVec4(0.00f, 0.52f, 1.00f, 1.0f)),
+                        3.0f
+                    );
+                } else {
+                    if (ImGui::Selectable("WEAPONS", false, 0, ImVec2(80, 20))) {
+                        iTopNavTab = 1;
+                        g_CurrentTab = 2; // Weapon tab in sidebar
+                    }
+                }
+
+                // Right Side Controls: Search & Settings
+                ImGui::SameLine(ImGui::GetWindowWidth() - 340.0f);
+                ImGui::SetNextItemWidth(180.0f);
+                ImGui::InputTextWithHint("##Search", "Search...", szSearchQuery, sizeof(szSearchQuery));
+
                 ImGui::SameLine();
-                ImGui::TextDisabled("Toggle Menu: [INSERT]");
+                if (ImGui::Button("[Settings]", ImVec2(90, 28))) {
+                    g_CurrentTab = 5; // Diagnostics / Configs
+                }
+
+                ImGui::SameLine();
+                ImGui::TextColored(ImVec4(0.20f, 0.85f, 0.40f, 1.0f), "[*]");
             }
             ImGui::EndChild();
 
+            ImGui::Separator();
             ImGui::Spacing();
 
-            // Left Navigation Sidebar
-            ImGui::BeginChild("Sidebar", ImVec2(250, 0), true);
+            // ── LEFT NAVIGATION SIDEBAR ──
+            ImGui::BeginChild("Sidebar", ImVec2(230, 0), true);
             {
-                ImGui::TextDisabled("CATEGORIES");
-                ImGui::Separator();
+                ImGui::TextColored(ImVec4(0.00f, 0.52f, 1.00f, 1.0f), "COMBAT");
                 ImGui::Spacing();
 
-                if (DrawTabButton("Visuals / ESP",        g_CurrentTab == 0, ImVec2(-1, 44))) g_CurrentTab = 0;
-                ImGui::Spacing();
-                if (DrawTabButton("Combat & Aimbot",      g_CurrentTab == 1, ImVec2(-1, 44))) g_CurrentTab = 1;
-                ImGui::Spacing();
-                if (DrawTabButton("Weapons & Spawner",    g_CurrentTab == 2, ImVec2(-1, 44))) g_CurrentTab = 2;
-                ImGui::Spacing();
-                if (DrawTabButton("Teleport & Mass Kill", g_CurrentTab == 3, ImVec2(-1, 44))) g_CurrentTab = 3;
-                ImGui::Spacing();
-                if (DrawTabButton("Color Palette",        g_CurrentTab == 4, ImVec2(-1, 44))) g_CurrentTab = 4;
-                ImGui::Spacing();
-                if (DrawTabButton("Configs & Diagnostics",g_CurrentTab == 5, ImVec2(-1, 44))) g_CurrentTab = 5;
+                if (DrawSidebarButton("Aimbot",        g_CurrentTab == 1, "[>]")) { g_CurrentTab = 1; iTopNavTab = 0; }
+                if (DrawSidebarButton("Silent Aim",    g_CurrentTab == 10, "[+]")) { g_CurrentTab = 10; }
+                if (DrawSidebarButton("Mass Kill",     g_CurrentTab == 3, "[X]")) { g_CurrentTab = 3; }
+                if (DrawSidebarButton("Teleport Kill", g_CurrentTab == 11, "[^]")) { g_CurrentTab = 11; }
 
                 ImGui::Spacing();
                 ImGui::Separator();
                 ImGui::Spacing();
 
-                ImGui::TextDisabled("QUICK TOGGLES");
-                ImGui::Checkbox("Master ESP",     &bEnableESP);
-                ImGui::Checkbox("Neon Glow",      &bEnableGlow);
-                ImGui::Checkbox("Silent Aim",     &bEnableSilentAim);
-                ImGui::Checkbox("Mass Kill Aura", &bEnableMassKill);
-                ImGui::Checkbox("Teleport Kill",  &bEnableTeleportKill);
-                ImGui::Checkbox("Infinite Ammo",  &bInfiniteAmmo);
-                ImGui::Checkbox("One-Hit Kill",   &bOneHitKillDamage);
-                ImGui::Checkbox("God Mode",       &bGodMode);
+                ImGui::TextColored(ImVec4(0.00f, 0.52f, 1.00f, 1.0f), "VISUALS");
+                ImGui::Spacing();
+
+                if (DrawSidebarButton("Player ESP",    g_CurrentTab == 0, "[o]")) { g_CurrentTab = 0; }
+                if (DrawSidebarButton("Skeletons & Glow", g_CurrentTab == 12, "[#]")) { g_CurrentTab = 12; }
+                if (DrawSidebarButton("Color Palette", g_CurrentTab == 4, "[*]")) { g_CurrentTab = 4; }
 
                 ImGui::Spacing();
                 ImGui::Separator();
                 ImGui::Spacing();
 
-                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.65f, 0.15f, 0.15f, 0.85f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.85f, 0.20f, 0.20f, 1.0f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.50f, 0.10f, 0.10f, 1.0f));
-                if (ImGui::Button("UNINJECT CHEAT", ImVec2(-1, 44))) {
+                ImGui::TextColored(ImVec4(0.00f, 0.52f, 1.00f, 1.0f), "WEAPONS");
+                ImGui::Spacing();
+
+                if (DrawSidebarButton("Weapon Spawner", g_CurrentTab == 2, "[~]")) { g_CurrentTab = 2; iTopNavTab = 1; }
+                if (DrawSidebarButton("Weapon Mods",    g_CurrentTab == 13, "[8]")) { g_CurrentTab = 13; }
+
+                ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Spacing();
+
+                ImGui::TextColored(ImVec4(0.00f, 0.52f, 1.00f, 1.0f), "MISC");
+                ImGui::Spacing();
+
+                if (DrawSidebarButton("God Mode",      g_CurrentTab == 14, "[!]")) { g_CurrentTab = 14; }
+                if (DrawSidebarButton("Configs",       g_CurrentTab == 5, "[?]")) { g_CurrentTab = 5; }
+
+                ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Spacing();
+
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.55f, 0.12f, 0.12f, 0.85f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.80f, 0.18f, 0.18f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.40f, 0.08f, 0.08f, 1.0f));
+                if (ImGui::Button("UNINJECT CHEAT", ImVec2(-1, 36))) {
                     RequestUninject();
                 }
                 ImGui::PopStyleColor(3);
@@ -2248,357 +2463,381 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
 
             ImGui::SameLine();
 
-            // Main Content Area
-            ImGui::BeginChild("MainContent", ImVec2(0, 0), true);
+            // ── MAIN CONTENT AREA (Rounded Cards Layout) ──
+            ImGui::BeginChild("MainContent", ImVec2(0, 0), false);
             {
-                // ─── TAB 0: Visuals / ESP ────────────────────────────────────
-                if (g_CurrentTab == 0) {
-                    ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "ESP VISUALS & WALLHACK");
-                    ImGui::TextDisabled("Configure dynamic ragdoll hitboxes, skeletons, tracers, and neon glow effects.");
-                    ImGui::Separator();
-                    ImGui::Spacing();
+                // ─── TAB: Aimbot & Combat Cards (Default Midnight View) ───────
+                if (g_CurrentTab == 1 || (iTopNavTab == 0 && g_CurrentTab == 1)) {
+                    float halfWidth = (ImGui::GetContentRegionAvail().x - 12.0f) * 0.5f;
 
-                    ImGui::Columns(2, "ESPColumns", false);
-                    ImGui::SetColumnWidth(0, 340.0f);
-
-                    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.4f, 1.0f), "ESP Features");
-                    ImGui::Spacing();
-                    ImGui::Checkbox("Master ESP Enable",    &bEnableESP);
-                    ImGui::Checkbox("Dynamic Hitbox Box",   &bDrawBoxes);
-                    ImGui::Checkbox("Ragdoll Skeleton",     &bDrawSkeleton);
-                    ImGui::Checkbox("Head Circle ESP",      &bDrawHeadCircle);
-                    ImGui::Checkbox("Tracers (Snaplines)",  &bDrawTracers);
-                    ImGui::Checkbox("Health Bars",          &bDrawHealthBar);
-                    ImGui::Checkbox("Distance & Info Text", &bDrawInfoText);
-                    ImGui::Checkbox("Neon Glow Bloom",      &bEnableGlow);
-
-                    ImGui::NextColumn();
-
-                    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.4f, 1.0f), "Visual Adjustments");
-                    ImGui::Spacing();
-
-                    if (bDrawBoxes) {
-                        ImGui::SliderFloat("Box Thickness", &fBoxThickness, 1.0f, 5.0f, "%.1f px");
-                    }
-                    if (bDrawSkeleton) {
-                        ImGui::SliderFloat("Skeleton Thickness", &fSkeletonThickness, 1.0f, 5.0f, "%.1f px");
-                    }
-                    if (bDrawHeadCircle) {
-                        ImGui::SliderFloat("Head Circle Scale", &fHeadCircleSize, 0.5f, 2.5f, "%.1fx");
-                    }
-                    if (bDrawTracers) {
-                        const char* origins[] = { "Bottom", "Crosshair", "Top" };
-                        ImGui::Combo("Tracer Origin", &iTracerOrigin, origins, IM_ARRAYSIZE(origins));
-                        ImGui::SliderFloat("Tracer Thickness", &fTracerThickness, 1.0f, 6.0f, "%.1f px");
-                    }
-                    if (bEnableGlow) {
-                        ImGui::SliderFloat("Glow Intensity", &fGlowIntensity, 0.2f, 2.5f, "%.1fx");
-                    }
-
-                    ImGui::SliderFloat("Max Distance", &fMaxDistance, 50.0f, 1000.0f, "%.0f m");
-
-                    ImGui::Spacing();
-                    ImGui::Separator();
-                    ImGui::Spacing();
-
-                    ImGui::Checkbox("Ignore Teammates (Enemies Only)", &bIgnoreTeammates);
-                    ImGui::Checkbox("Ignore Local Player (Self)",     &bIgnoreLocal);
-                    ImGui::Checkbox("Ignore Dead / Spawn Ghosts",     &bIgnoreDead);
-
-                    ImGui::Columns(1);
-                }
-
-                // ─── TAB 1: Combat & Aimbot ──────────────────────────────────
-                else if (g_CurrentTab == 1) {
-                    ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "COMBAT, SILENT AIM & AIMBOT");
-                    ImGui::TextDisabled("Silent Aim (shoot anywhere to hit), Smooth tracking aimbot, and God Mode.");
-                    ImGui::Separator();
-                    ImGui::Spacing();
-
-                    ImGui::Columns(2, "CombatColumns", false);
-                    ImGui::SetColumnWidth(0, 360.0f);
-
-                    // Left Column: Silent Aim
-                    ImGui::TextColored(ImVec4(1.0f, 0.35f, 0.65f, 1.0f), "Silent Aim (Hit Any Shot Anywhere)");
-                    ImGui::Spacing();
-
-                    ImGui::Checkbox("Enable Silent Aim", &bEnableSilentAim);
-                    if (bEnableSilentAim) {
-                        const char* sBones[] = { "Chest (Center Torso)", "Head (Upper Skull)" };
-                        ImGui::Combo("Silent Aim Bone", &iSilentAimTarget, sBones, IM_ARRAYSIZE(sBones));
-                        ImGui::Checkbox("360° Full Map (Anywhere)", &bSilentAimFull360);
-
-                        if (!bSilentAimFull360) {
-                            ImGui::SliderFloat("Silent FOV", &fSilentAimFOV, 30.0f, 600.0f, "%.0f px");
-                            ImGui::Checkbox("Draw Silent FOV Circle", &bDrawSilentAimFOV);
-                        }
-                    } else {
-                        ImGui::TextDisabled("Shoot anywhere on screen to hit enemies automatically.");
-                    }
-
-                    ImGui::Spacing();
-                    ImGui::Separator();
-                    ImGui::Spacing();
-
-                    ImGui::TextColored(ImVec4(0.40f, 1.0f, 0.50f, 1.0f), "Player Invulnerability");
-                    ImGui::Spacing();
-                    ImGui::Checkbox("God Mode (Infinite Health)", &bGodMode);
-                    ImGui::TextDisabled("Freezes health at 99,999 and auto-heals damage.");
-
-                    ImGui::NextColumn();
-
-                    // Right Column: Aimbot
-                    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.4f, 1.0f), "Smooth Aimbot Tracking");
-                    ImGui::Spacing();
-
-                    ImGui::Checkbox("Enable Smooth Aimbot", &bEnableAimbot);
-                    if (bEnableAimbot) {
-                        ImGui::Combo("Aimbot Key", &iAimbotKey, g_KeyNames, IM_ARRAYSIZE(g_KeyNames));
-                        ImGui::Checkbox("Draw Visual FOV Circle", &bDrawAimbotFOV);
-
-                        const char* targetBones[] = { "Chest (Center Torso)", "Head (Upper Skull)" };
-                        ImGui::Combo("Target Bone", &iAimbotTarget, targetBones, IM_ARRAYSIZE(targetBones));
-
-                        ImGui::SliderFloat("FOV Radius",       &aimbotFOV,      20.0f, 500.0f, "%.0f px");
-                        ImGui::SliderFloat("Smoothing Factor", &aimbotSmooth,   1.0f,  25.0f,  "%.1f");
-                        ImGui::SliderFloat("Max Aim Speed",    &aimbotMaxSpeed, 5.0f,  80.0f,  "%.0f px/f");
-                    }
-
-                    ImGui::Columns(1);
-                }
-
-                // ─── TAB 2: Weapons & Spawner ────────────────────────────────
-                else if (g_CurrentTab == 2) {
-                    ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "WEAPON SPAWNER & STAT MODIFIER");
-                    ImGui::TextDisabled("Equip any weapon in the game on-demand, set infinite ammo, 99,999 damage, and rapid fire.");
-                    ImGui::Separator();
-                    ImGui::Spacing();
-
-                    ImGui::Columns(2, "WeaponColumns", false);
-                    ImGui::SetColumnWidth(0, 360.0f);
-
-                    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.4f, 1.0f), "Weapon Selector");
-                    ImGui::Spacing();
-
-                    ImGui::Combo("Select Weapon", &iSelectedWeaponIndex, g_WeaponNames, IM_ARRAYSIZE(g_WeaponNames));
-                    ImGui::Spacing();
-
-                    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.55f, 0.85f, 0.90f));
-                    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.28f, 0.65f, 0.98f, 1.0f));
-                    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.15f, 0.45f, 0.75f, 1.0f));
-                    if (ImGui::Button("EQUIP SELECTED WEAPON NOW", ImVec2(-1, 46))) {
-                        GiveWeapon(iSelectedWeaponIndex);
-                    }
-                    ImGui::PopStyleColor(3);
-
-                    ImGui::Spacing();
-                    ImGui::Separator();
-                    ImGui::Spacing();
-
-                    ImGui::TextDisabled("Available Weapons:");
-                    for (int w = 0; w < IM_ARRAYSIZE(g_WeaponNames); w++) {
-                        ImGui::BulletText("[%d] %s", w, g_WeaponNames[w]);
-                    }
-
-                    ImGui::NextColumn();
-
-                    ImGui::TextColored(ImVec4(1.0f, 0.35f, 0.45f, 1.0f), "Weapon Stat Overrides");
-                    ImGui::Spacing();
-
-                    ImGui::Checkbox("Infinite Ammo (99,999)", &bInfiniteAmmo);
-                    ImGui::TextDisabled("Never runs out of ammo, no reload required.");
-                    ImGui::Spacing();
-
-                    ImGui::Checkbox("One-Hit Kill Damage (99,999 DMG)", &bOneHitKillDamage);
-                    ImGui::TextDisabled("Overrides weapon minimum & maximum damage to 99,999.");
-                    ImGui::Spacing();
-
-                    ImGui::Checkbox("Rapid Fire / Instant Attack Rate", &bRapidFire);
-                    ImGui::TextDisabled("Removes weapon firing delay for ultra-fast shooting.");
-                    ImGui::Spacing();
-
-                    ImGui::Checkbox("Infinite Range (9,999m)", &bInfiniteRange);
-                    ImGui::TextDisabled("Allows hitting targets across the entire map.");
-
-                    ImGui::Columns(1);
-                }
-
-                // ─── TAB 3: Teleport & Mass Kill ─────────────────────────────
-                else if (g_CurrentTab == 3) {
-                    ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "MASS KILL AURA & TELEPORTATION");
-                    ImGui::TextDisabled("Wipe the entire server instantly or auto-cycle teleport to every player.");
-                    ImGui::Separator();
-                    ImGui::Spacing();
-
-                    ImGui::Columns(2, "TeleportColumns", false);
-                    ImGui::SetColumnWidth(0, 360.0f);
-
-                    // Left Column: Mass Kill
-                    ImGui::TextColored(ImVec4(1.0f, 0.20f, 0.35f, 1.0f), "Mass Kill Aura (Kill All Enemies)");
-                    ImGui::Spacing();
-
-                    ImGui::Checkbox("Enable Mass Kill Aura", &bEnableMassKill);
-                    if (bEnableMassKill) {
-                        const char* mkModes[] = { "Direct Server Health Zero (RPC)", "Multi-Raycast Silent CMDShoot", "Hybrid (Combined Exploit)" };
-                        ImGui::Combo("Kill Exploit Mode", &iMassKillMode, mkModes, IM_ARRAYSIZE(mkModes));
-                        ImGui::SliderFloat("Kill Interval", &fMassKillInterval, 20.0f, 500.0f, "%.0f ms");
-                    } else {
-                        ImGui::TextDisabled("Remotely wipes all enemy players across the map without moving.");
-                    }
-
-                    ImGui::NextColumn();
-
-                    // Right Column: Teleport Kill
-                    ImGui::TextColored(ImVec4(1.0f, 0.35f, 0.45f, 1.0f), "Teleport Kill & Server Cycler");
-                    ImGui::Spacing();
-
-                    ImGui::Checkbox("Enable Teleport Kill", &bEnableTeleportKill);
-                    ImGui::Spacing();
-
-                    if (bEnableTeleportKill) {
-                        ImGui::Checkbox("Hold Hotkey Only", &bTeleportHoldKey);
-                        if (bTeleportHoldKey) {
-                            ImGui::Combo("Teleport Key", &iTeleportKey, g_KeyNames, IM_ARRAYSIZE(g_KeyNames));
-                        }
-
+                    // ── LEFT CARD: "Aimbot" ──
+                    ImGui::BeginChild("CardAimbot", ImVec2(halfWidth, 380), true);
+                    {
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Aimbot");
+                        ImGui::Separator();
                         ImGui::Spacing();
-                        const char* targetModes[] = { "Random / Auto-Cycle Server", "Closest Distance", "Lowest HP First" };
-                        ImGui::Combo("Target Mode", &iTeleportTargetMode, targetModes, IM_ARRAYSIZE(targetModes));
 
-                        const char* posModes[] = { "Behind Enemy (Backstab)", "Above Enemy (Sky Drop)", "In Front of Enemy", "Directly on Target" };
-                        ImGui::Combo("Teleport Position", &iTeleportPosition, posModes, IM_ARRAYSIZE(posModes));
+                        ImGui::Checkbox("Enable", &bEnableAimbot);
+                        ImGui::Checkbox("Auto-fire", &bAimbotAutoFire);
+                        ImGui::Checkbox("Disable aimbot while flashed", &bAimbotWhileFlashed);
+                        ImGui::Checkbox("Disable aimbot through smoke", &bAimbotThroughSmoke);
+                        ImGui::Checkbox("Draw FOV circle", &bDrawAimbotFOV);
 
-                        ImGui::Spacing();
-                        ImGui::SliderFloat("Distance Offset", &fTeleportDistance, 0.2f, 5.0f, "%.1f m");
-                        ImGui::SliderFloat("Height Offset",   &fTeleportHeight,   -1.0f, 3.0f, "%.1f m");
-
-                        ImGui::Spacing();
-                        ImGui::Checkbox("Auto-Shoot on Teleport", &bTeleportAutoShoot);
-                        ImGui::Checkbox("Auto-Aim / LookAt Target", &bTeleportLookAt);
-
-                        if (bTeleportAutoShoot) {
-                            ImGui::SliderFloat("Shoot Interval", &fTeleportShootRate, 20.0f, 200.0f, "%.0f ms");
-                        }
-                    } else {
-                        ImGui::TextDisabled("Instantly teleports to enemies, kills them, and cycles to the next.");
-                    }
-
-                    ImGui::Columns(1);
-                }
-
-                // ─── TAB 4: Color Palette ────────────────────────────────────
-                else if (g_CurrentTab == 4) {
-                    ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "COLOR PALETTE & CUSTOMIZATION");
-                    ImGui::TextDisabled("Personalize ESP overlay, tracers, skeletons, and entity highlighting colors.");
-                    ImGui::Separator();
-                    ImGui::Spacing();
-
-                    ImGui::Columns(2, "ColorColumns", false);
-                    ImGui::SetColumnWidth(0, 360.0f);
-
-                    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.4f, 1.0f), "ESP Entity Colors");
-                    ImGui::Spacing();
-                    ImGui::ColorEdit4("Enemy / Target Color", colEnemy);
-                    ImGui::Spacing();
-                    ImGui::ColorEdit4("Teammate Color",      colTeam);
-                    ImGui::Spacing();
-                    ImGui::ColorEdit4("Head Circle Color",    colHeadCircle);
-
-                    ImGui::NextColumn();
-
-                    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.4f, 1.0f), "Lines & Bones");
-                    ImGui::Spacing();
-                    ImGui::ColorEdit4("Skeleton Bone Color",  colSkeleton);
-                    ImGui::Spacing();
-                    ImGui::ColorEdit4("Tracer Snapline Color",colTracers);
-
-                    ImGui::Columns(1);
-
-                    ImGui::Spacing();
-                    ImGui::Separator();
-                    ImGui::Spacing();
-
-                    if (ImGui::Button("Reset Colors to Default", ImVec2(240, 38))) {
-                        colEnemy[0] = 1.0f; colEnemy[1] = 0.22f; colEnemy[2] = 0.35f; colEnemy[3] = 1.0f;
-                        colTeam[0]  = 0.20f; colTeam[1] = 0.70f; colTeam[2] = 1.00f; colTeam[3] = 1.0f;
-                        colSkeleton[0] = 0.95f; colSkeleton[1] = 0.95f; colSkeleton[2] = 0.98f; colSkeleton[3] = 0.90f;
-                        colTracers[0]  = 1.0f; colTracers[1] = 0.85f; colTracers[2] = 0.20f; colTracers[3] = 0.80f;
-                        colHeadCircle[0]=1.0f; colHeadCircle[1]=0.35f; colHeadCircle[2]=0.50f; colHeadCircle[3]=1.0f;
-                    }
-                }
-
-                // ─── TAB 5: Configs & Diagnostics ────────────────────────────
-                else if (g_CurrentTab == 5) {
-                    ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "CONFIGS & SYSTEM DIAGNOSTICS");
-                    ImGui::TextDisabled("Save/load configuration profiles, check system telemetry, and inspect logs.");
-                    ImGui::Separator();
-                    ImGui::Spacing();
-
-                    if (g_ConfigStatus[0] != '\0' && (GetTickCount64() - g_ConfigStatusTime < 6000)) {
-                        ImGui::TextColored(ImVec4(0.35f, 1.0f, 0.50f, 1.0f), "%s", g_ConfigStatus);
                         ImGui::Spacing();
                         ImGui::Separator();
                         ImGui::Spacing();
+
+                        ImGui::SliderFloat("Kill delay", &fKillDelay, 0.0f, 1.0f, "%.3f");
+                        ImGui::SliderFloat("Mouse lock percentage x", &fMouseLockX, 0.0f, 1.0f, "%.3f");
+                        ImGui::SliderFloat("Mouse lock percentage y", &fMouseLockY, 0.0f, 1.0f, "%.3f");
+                        ImGui::SliderFloat("FOV Radius", &aimbotFOV, 20.0f, 500.0f, "%.1f px");
+                        ImGui::SliderFloat("Smoothing", &aimbotSmooth, 1.0f, 25.0f, "%.1f");
                     }
+                    ImGui::EndChild();
 
-                    ImGui::Columns(2, "ConfigDiagColumns", false);
-                    ImGui::SetColumnWidth(0, 360.0f);
-
-                    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.4f, 1.0f), "Configuration System");
-                    ImGui::Spacing();
-                    ImGui::Text("File: XUYBYA_Config.ini");
-                    ImGui::Spacing();
-
-                    if (ImGui::Button("SAVE CONFIG TO DISK", ImVec2(-1, 42))) {
-                        SaveConfig();
-                    }
-                    ImGui::Spacing();
-                    if (ImGui::Button("LOAD CONFIG FROM DISK", ImVec2(-1, 42))) {
-                        LoadConfig();
-                    }
-                    ImGui::Spacing();
-                    if (ImGui::Button("RESET TO DEFAULTS", ImVec2(-1, 38))) {
-                        ResetConfigToDefaults();
-                    }
-
-                    ImGui::NextColumn();
-
-                    ImGui::TextColored(ImVec4(0.35f, 0.85f, 1.0f, 1.0f), "Engine Telemetry");
-                    ImGui::Spacing();
-
-                    bool il2cppOk  = (g_Il2Cpp.hGameAssembly != nullptr);
-                    bool classesOk = (g_PlayerClass != nullptr);
-
-                    ImGui::Text("DirectX 11 Overlay : ");
                     ImGui::SameLine();
-                    ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.4f, 1.0f), "HOOKED (Active)");
 
-                    ImGui::Text("IL2CPP Engine API  : ");
+                    // ── RIGHT CARD: "Recoil" ──
+                    ImGui::BeginChild("CardRecoil", ImVec2(halfWidth, 380), true);
+                    {
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Recoil");
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        ImGui::Checkbox("Enable Recoil Control (RCS)", &bRecoilCompensation);
+                        ImGui::Spacing();
+
+                        // Sliders in slightly inactive / greyed-out style
+                        if (!bRecoilCompensation) {
+                            ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.45f);
+                        }
+
+                        ImGui::SliderInt("Start bullet", &iRecoilStartBullet, 1, 10);
+                        ImGui::SliderFloat("X Axis", &fRecoilX, 0.0f, 2.0f, "%.3f");
+                        ImGui::SliderFloat("Y Axis", &fRecoilY, 0.0f, 2.0f, "%.3f");
+                        ImGui::SliderFloat("Smooth", &fRecoilSmooth, 0.0f, 2.0f, "%.3f");
+
+                        if (!bRecoilCompensation) {
+                            ImGui::PopStyleVar();
+                        }
+
+                        ImGui::Spacing();
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        ImGui::TextColored(ImVec4(0.00f, 0.52f, 1.00f, 1.0f), "Weapon Power Overrides");
+                        ImGui::Checkbox("Infinite Ammo (99,999)", &bInfiniteAmmo);
+                        ImGui::Checkbox("One-Hit Kill Damage", &bOneHitKillDamage);
+                        ImGui::Checkbox("Rapid Fire Rate", &bRapidFire);
+                        ImGui::Checkbox("Infinite Range (9,999m)", &bInfiniteRange);
+                    }
+                    ImGui::EndChild();
+
+                    ImGui::Spacing();
+
+                    // ── BOTTOM SECTION: "Triggerbot & Combat Suite" ──
+                    ImGui::BeginChild("CardTriggerbot", ImVec2(0, 0), true);
+                    {
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Triggerbot & Quick Combat Suite");
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        ImGui::Columns(3, "TriggerColumns", false);
+
+                        ImGui::Checkbox("Enable Triggerbot", &bTriggerbot);
+                        ImGui::Checkbox("Headshots Only", &bTriggerbotHeadOnly);
+                        ImGui::SliderFloat("Triggerbot Delay", &fTriggerbotDelay, 0.0f, 0.5f, "%.3f s");
+
+                        ImGui::NextColumn();
+
+                        ImGui::Checkbox("Silent Aim (Hit Anywhere)", &bEnableSilentAim);
+                        ImGui::Checkbox("Silent Aim 360°", &bSilentAimFull360);
+                        ImGui::Checkbox("God Mode (Invulnerability)", &bGodMode);
+
+                        ImGui::NextColumn();
+
+                        ImGui::Checkbox("Teleport Kill Aura", &bEnableTeleportKill);
+                        ImGui::Checkbox("Mass Kill Server Wipe", &bEnableMassKill);
+                        if (ImGui::Button("Wipe All Enemies Now", ImVec2(-1, 32))) {
+                            DoMassKill();
+                        }
+
+                        ImGui::Columns(1);
+                    }
+                    ImGui::EndChild();
+                }
+
+                // ─── TAB: Visuals / ESP ───────────────────────────────────────
+                else if (g_CurrentTab == 0 || g_CurrentTab == 12) {
+                    float halfWidth = (ImGui::GetContentRegionAvail().x - 12.0f) * 0.5f;
+
+                    ImGui::BeginChild("CardESPFeatures", ImVec2(halfWidth, 0), true);
+                    {
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "ESP Visual Overlays");
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        ImGui::Checkbox("Master ESP Enable",    &bEnableESP);
+                        ImGui::Checkbox("Dynamic Hitbox Box",   &bDrawBoxes);
+                        ImGui::Checkbox("Ragdoll Skeleton",     &bDrawSkeleton);
+                        ImGui::Checkbox("Head Circle ESP",      &bDrawHeadCircle);
+                        ImGui::Checkbox("Tracers (Snaplines)",  &bDrawTracers);
+                        ImGui::Checkbox("Health Bars",          &bDrawHealthBar);
+                        ImGui::Checkbox("Distance & Info Text", &bDrawInfoText);
+                        ImGui::Checkbox("Neon Glow Bloom",      &bEnableGlow);
+
+                        ImGui::Spacing();
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        ImGui::Checkbox("Ignore Teammates", &bIgnoreTeammates);
+                        ImGui::Checkbox("Ignore Self",      &bIgnoreLocal);
+                        ImGui::Checkbox("Ignore Dead",      &bIgnoreDead);
+                    }
+                    ImGui::EndChild();
+
                     ImGui::SameLine();
-                    ImGui::TextColored(il2cppOk ? ImVec4(0.3f, 1.0f, 0.4f, 1.0f) : ImVec4(1.0f, 0.3f, 0.3f, 1.0f),
-                                       il2cppOk ? "INITIALIZED (OK)" : "FAILED");
 
-                    ImGui::Text("Player Ragdoll Class: ");
+                    ImGui::BeginChild("CardESPSettings", ImVec2(halfWidth, 0), true);
+                    {
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Visual Adjustments");
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        if (bDrawBoxes) {
+                            ImGui::SliderFloat("Box Thickness", &fBoxThickness, 1.0f, 5.0f, "%.1f px");
+                        }
+                        if (bDrawSkeleton) {
+                            ImGui::SliderFloat("Skeleton Thickness", &fSkeletonThickness, 1.0f, 5.0f, "%.1f px");
+                        }
+                        if (bDrawHeadCircle) {
+                            ImGui::SliderFloat("Head Circle Scale", &fHeadCircleSize, 0.5f, 2.5f, "%.1fx");
+                        }
+                        if (bDrawTracers) {
+                            const char* origins[] = { "Bottom", "Crosshair", "Top" };
+                            ImGui::Combo("Tracer Origin", &iTracerOrigin, origins, IM_ARRAYSIZE(origins));
+                            ImGui::SliderFloat("Tracer Thickness", &fTracerThickness, 1.0f, 6.0f, "%.1f px");
+                        }
+                        if (bEnableGlow) {
+                            ImGui::SliderFloat("Glow Intensity", &fGlowIntensity, 0.2f, 2.5f, "%.1fx");
+                        }
+
+                        ImGui::SliderFloat("Max Distance", &fMaxDistance, 50.0f, 1000.0f, "%.0f m");
+                    }
+                    ImGui::EndChild();
+                }
+
+                // ─── TAB: Weapon Spawner & Modifiers ─────────────────────────
+                else if (g_CurrentTab == 2 || g_CurrentTab == 13 || iTopNavTab == 1) {
+                    float halfWidth = (ImGui::GetContentRegionAvail().x - 12.0f) * 0.5f;
+
+                    ImGui::BeginChild("CardWeaponSpawner", ImVec2(halfWidth, 0), true);
+                    {
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Weapon Spawner");
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        ImGui::Combo("Select Weapon", &iSelectedWeaponIndex, g_WeaponNames, IM_ARRAYSIZE(g_WeaponNames));
+                        ImGui::Spacing();
+
+                        if (ImGui::Button("EQUIP SELECTED WEAPON NOW", ImVec2(-1, 46))) {
+                            GiveWeapon(iSelectedWeaponIndex);
+                        }
+
+                        ImGui::Spacing();
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        ImGui::TextDisabled("Available Weapons:");
+                        for (int w = 0; w < IM_ARRAYSIZE(g_WeaponNames); w++) {
+                            ImGui::BulletText("[%d] %s", w, g_WeaponNames[w]);
+                        }
+                    }
+                    ImGui::EndChild();
+
                     ImGui::SameLine();
-                    ImGui::TextColored(classesOk ? ImVec4(0.3f, 1.0f, 0.4f, 1.0f) : ImVec4(1.0f, 0.6f, 0.2f, 1.0f),
-                                       classesOk ? "BOUND (Assembly-CSharp)" : "Waiting for match spawn...");
 
-                    ImGui::Spacing();
-                    ImGui::Text("Live Tracked Entities : %d", (int)g_ESPData.size());
-                    ImGui::Text("Framerate / Performance: %.1f FPS (%.2f ms/frame)", io.Framerate, 1000.0f / io.Framerate);
-                    ImGui::Text("Viewport Resolution    : %.0f x %.0f", io.DisplaySize.x, io.DisplaySize.y);
+                    ImGui::BeginChild("CardWeaponMods", ImVec2(halfWidth, 0), true);
+                    {
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Weapon Stat Overrides");
+                        ImGui::Separator();
+                        ImGui::Spacing();
 
-                    ImGui::Columns(1);
+                        ImGui::Checkbox("Infinite Ammo (99,999)", &bInfiniteAmmo);
+                        ImGui::TextDisabled("Never runs out of ammo, no reload required.");
+                        ImGui::Spacing();
 
-                    ImGui::Spacing();
-                    ImGui::Separator();
-                    ImGui::Spacing();
+                        ImGui::Checkbox("One-Hit Kill Damage (99,999 DMG)", &bOneHitKillDamage);
+                        ImGui::TextDisabled("Overrides weapon minimum & maximum damage to 99,999.");
+                        ImGui::Spacing();
 
-                    ImGui::TextColored(ImVec4(0.35f, 0.85f, 1.0f, 1.0f), "Diagnostic Log Files:");
-                    ImGui::TextDisabled("Log files are created automatically in the cheat directory:");
-                    ImGui::BulletText("Cheat & Game Engine Log: XUYBYA_Cheat.log");
-                    ImGui::BulletText("Crash & Access Violation: XUYBYA_Crash.log");
-                    ImGui::BulletText("Injector Telemetry Log : XUYBYA_Injector.log");
+                        ImGui::Checkbox("Rapid Fire / Instant Attack Rate", &bRapidFire);
+                        ImGui::TextDisabled("Removes weapon firing delay for ultra-fast shooting.");
+                        ImGui::Spacing();
+
+                        ImGui::Checkbox("Infinite Range (9,999m)", &bInfiniteRange);
+                        ImGui::TextDisabled("Allows hitting targets across the entire map.");
+                    }
+                    ImGui::EndChild();
+                }
+
+                // ─── TAB: Teleport Kill & Mass Kill ──────────────────────────
+                else if (g_CurrentTab == 3 || g_CurrentTab == 11) {
+                    float halfWidth = (ImGui::GetContentRegionAvail().x - 12.0f) * 0.5f;
+
+                    ImGui::BeginChild("CardMassKill", ImVec2(halfWidth, 0), true);
+                    {
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Mass Kill Aura");
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        ImGui::Checkbox("Enable Mass Kill Aura", &bEnableMassKill);
+                        if (bEnableMassKill) {
+                            const char* mkModes[] = { "Direct Server Health Zero (RPC)", "Multi-Raycast Silent CMDShoot", "Hybrid" };
+                            ImGui::Combo("Kill Exploit Mode", &iMassKillMode, mkModes, IM_ARRAYSIZE(mkModes));
+                            ImGui::SliderFloat("Kill Interval", &fMassKillInterval, 20.0f, 500.0f, "%.0f ms");
+                        }
+                    }
+                    ImGui::EndChild();
+
+                    ImGui::SameLine();
+
+                    ImGui::BeginChild("CardTeleportKill", ImVec2(halfWidth, 0), true);
+                    {
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Teleport Kill & Cycler");
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        ImGui::Checkbox("Enable Teleport Kill", &bEnableTeleportKill);
+                        if (bEnableTeleportKill) {
+                            ImGui::Checkbox("Hold Hotkey Only", &bTeleportHoldKey);
+                            if (bTeleportHoldKey) {
+                                ImGui::Combo("Teleport Key", &iTeleportKey, g_KeyNames, IM_ARRAYSIZE(g_KeyNames));
+                            }
+
+                            const char* targetModes[] = { "Random / Auto-Cycle Server", "Closest Distance", "Lowest HP First" };
+                            ImGui::Combo("Target Mode", &iTeleportTargetMode, targetModes, IM_ARRAYSIZE(targetModes));
+
+                            const char* posModes[] = { "Behind Enemy (Backstab)", "Above Enemy", "In Front", "Directly on Target" };
+                            ImGui::Combo("Teleport Position", &iTeleportPosition, posModes, IM_ARRAYSIZE(posModes));
+
+                            ImGui::SliderFloat("Distance Offset", &fTeleportDistance, 0.2f, 5.0f, "%.1f m");
+                            ImGui::SliderFloat("Height Offset",   &fTeleportHeight,   -1.0f, 3.0f, "%.1f m");
+                            ImGui::Checkbox("Auto-Shoot on Teleport", &bTeleportAutoShoot);
+                            ImGui::Checkbox("Auto-Aim / LookAt Target", &bTeleportLookAt);
+                        }
+                    }
+                    ImGui::EndChild();
+                }
+
+                // ─── TAB: Color Palette ──────────────────────────────────────
+                else if (g_CurrentTab == 4) {
+                    float halfWidth = (ImGui::GetContentRegionAvail().x - 12.0f) * 0.5f;
+
+                    ImGui::BeginChild("CardColors1", ImVec2(halfWidth, 0), true);
+                    {
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "ESP Entity Colors");
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        ImGui::ColorEdit4("Enemy / Target Color", colEnemy);
+                        ImGui::Spacing();
+                        ImGui::ColorEdit4("Teammate Color",      colTeam);
+                        ImGui::Spacing();
+                        ImGui::ColorEdit4("Head Circle Color",    colHeadCircle);
+                    }
+                    ImGui::EndChild();
+
+                    ImGui::SameLine();
+
+                    ImGui::BeginChild("CardColors2", ImVec2(halfWidth, 0), true);
+                    {
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Lines & Snaplines");
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        ImGui::ColorEdit4("Skeleton Bone Color",  colSkeleton);
+                        ImGui::Spacing();
+                        ImGui::ColorEdit4("Tracer Snapline Color",colTracers);
+                        ImGui::Spacing();
+
+                        if (ImGui::Button("Reset Colors to Default", ImVec2(-1, 38))) {
+                            colEnemy[0] = 1.0f; colEnemy[1] = 0.22f; colEnemy[2] = 0.35f; colEnemy[3] = 1.0f;
+                            colTeam[0]  = 0.20f; colTeam[1] = 0.70f; colTeam[2] = 1.00f; colTeam[3] = 1.0f;
+                            colSkeleton[0] = 0.95f; colSkeleton[1] = 0.95f; colSkeleton[2] = 0.98f; colSkeleton[3] = 0.90f;
+                            colTracers[0]  = 1.0f; colTracers[1] = 0.85f; colTracers[2] = 0.20f; colTracers[3] = 0.80f;
+                            colHeadCircle[0]=1.0f; colHeadCircle[1]=0.35f; colHeadCircle[2]=0.50f; colHeadCircle[3]=1.0f;
+                        }
+                    }
+                    ImGui::EndChild();
+                }
+
+                // ─── TAB: Configs, God Mode & Diagnostics ────────────────────
+                else if (g_CurrentTab == 5 || g_CurrentTab == 14 || g_CurrentTab == 10) {
+                    float halfWidth = (ImGui::GetContentRegionAvail().x - 12.0f) * 0.5f;
+
+                    ImGui::BeginChild("CardConfigs", ImVec2(halfWidth, 0), true);
+                    {
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Configuration Profiles");
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        if (g_ConfigStatus[0] != '\0' && (GetTickCount64() - g_ConfigStatusTime < 6000)) {
+                            ImGui::TextColored(ImVec4(0.00f, 0.52f, 1.00f, 1.0f), "%s", g_ConfigStatus);
+                            ImGui::Spacing();
+                        }
+
+                        ImGui::Text("File: XUYBYA_Config.ini");
+                        ImGui::Spacing();
+
+                        if (ImGui::Button("SAVE CONFIG TO DISK", ImVec2(-1, 42))) SaveConfig();
+                        ImGui::Spacing();
+                        if (ImGui::Button("LOAD CONFIG FROM DISK", ImVec2(-1, 42))) LoadConfig();
+                        ImGui::Spacing();
+                        if (ImGui::Button("RESET TO DEFAULTS", ImVec2(-1, 38))) ResetConfigToDefaults();
+                    }
+                    ImGui::EndChild();
+
+                    ImGui::SameLine();
+
+                    ImGui::BeginChild("CardTelemetry", ImVec2(halfWidth, 0), true);
+                    {
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Engine Telemetry & Diagnostics");
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        bool il2cppOk  = (g_Il2Cpp.hGameAssembly != nullptr);
+                        bool classesOk = (g_PlayerClass != nullptr);
+
+                        ImGui::Text("DirectX 11 Overlay : ");
+                        ImGui::SameLine();
+                        ImGui::TextColored(ImVec4(0.00f, 0.52f, 1.00f, 1.0f), "HOOKED (Active)");
+
+                        ImGui::Text("IL2CPP Engine API  : ");
+                        ImGui::SameLine();
+                        ImGui::TextColored(il2cppOk ? ImVec4(0.20f, 0.85f, 0.40f, 1.0f) : ImVec4(1.0f, 0.3f, 0.3f, 1.0f),
+                                           il2cppOk ? "INITIALIZED (OK)" : "FAILED");
+
+                        ImGui::Text("Player Ragdoll Class: ");
+                        ImGui::SameLine();
+                        ImGui::TextColored(classesOk ? ImVec4(0.20f, 0.85f, 0.40f, 1.0f) : ImVec4(1.0f, 0.6f, 0.2f, 1.0f),
+                                           classesOk ? "BOUND (Assembly-CSharp)" : "Waiting for match spawn...");
+
+                        ImGui::Spacing();
+                        ImGui::Text("Live Tracked Entities : %d", (int)g_ESPData.size());
+                        ImGui::Text("Framerate / Performance: %.1f FPS (%.2f ms/frame)", io.Framerate, 1000.0f / io.Framerate);
+                        ImGui::Text("Viewport Resolution    : %.0f x %.0f", io.DisplaySize.x, io.DisplaySize.y);
+
+                        ImGui::Spacing();
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        ImGui::TextColored(ImVec4(0.00f, 0.52f, 1.00f, 1.0f), "Diagnostic Log Files:");
+                        ImGui::BulletText("Cheat & Game Engine Log: XUYBYA_Cheat.log");
+                        ImGui::BulletText("Crash & Access Violation: XUYBYA_Crash.log");
+                        ImGui::BulletText("Injector Telemetry Log : XUYBYA_Injector.log");
+                    }
+                    ImGui::EndChild();
                 }
             }
             ImGui::EndChild();
