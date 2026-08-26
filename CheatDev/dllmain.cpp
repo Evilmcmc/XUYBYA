@@ -71,8 +71,20 @@ static LONG WINAPI CrashHandler(PEXCEPTION_POINTERS pExc) {
     if (!pExc || !pExc->ExceptionRecord) return EXCEPTION_CONTINUE_SEARCH;
     DWORD code = pExc->ExceptionRecord->ExceptionCode;
 
+    static ULONGLONG s_LastCrashLogTime = 0;
+    static void* s_LastCrashAddr = nullptr;
+
     if (code == 0xC0000005 || code == 0xC000001D || code == 0xC0000094 || code == 0x80000003) {
         void* crashAddr = pExc->ExceptionRecord->ExceptionAddress;
+        ULONGLONG now = GetTickCount64();
+
+        // Rate-limit crash logging to prevent disk I/O lockups on non-fatal background physics exceptions
+        if (crashAddr == s_LastCrashAddr && (now - s_LastCrashLogTime < 3000)) {
+            return EXCEPTION_CONTINUE_SEARCH;
+        }
+        s_LastCrashAddr = crashAddr;
+        s_LastCrashLogTime = now;
+
         HMODULE hMod = NULL;
         char modName[MAX_PATH] = "Unknown Module";
         if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)crashAddr, &hMod)) {
@@ -104,11 +116,6 @@ static LONG WINAPI CrashHandler(PEXCEPTION_POINTERS pExc) {
                      (unsigned long long)pExc->ContextRecord->Rbx,
                      (unsigned long long)pExc->ContextRecord->Rcx,
                      (unsigned long long)pExc->ContextRecord->Rdx);
-            CheatLog("  RSI: 0x%016llX  RDI: 0x%016llX  R8:  0x%016llX  R9:  0x%016llX",
-                     (unsigned long long)pExc->ContextRecord->Rsi,
-                     (unsigned long long)pExc->ContextRecord->Rdi,
-                     (unsigned long long)pExc->ContextRecord->R8,
-                     (unsigned long long)pExc->ContextRecord->R9);
         }
         CheatLog("========================================================\n");
     }
@@ -839,6 +846,87 @@ static void ResetConfigToDefaults() {
 
     bGodMode            = false;
     SetConfigStatus("Reset all settings to default state.");
+}
+
+// ─── Ultimate HvH (Hack vs Hack / Rage) Config Preset ────────────────────────
+static void LoadHvHConfig() {
+    // 1. Silent Aim Rage
+    bEnableSilentAim       = true;
+    iSilentAimTarget       = 1;      // Head Hitbox
+    fSilentAimFOV          = 800.0f;
+    bDrawSilentAimFOV      = true;
+    bSilentAimFull360      = true;   // Hit targets in all 360 degrees
+
+    bEnableAimbot          = false;  // Silent aim takes full priority
+
+    // 2. Mass Kill Server Annihilation
+    bEnableMassKill        = true;
+    fMassKillInterval      = 50.0f;  // Rapid 50ms server wipe
+    iMassKillMode          = 1;      // Multi-Raycast CMDShoot
+
+    // 3. Teleport Kill & Auto-Shoot
+    bEnableTeleportKill    = true;
+    bTeleportHoldKey       = false;
+    iTeleportPosition      = 0;      // Backstab behind enemy
+    iTeleportTargetMode    = 0;      // Auto-cycle all enemies on server
+    fTeleportDistance      = 1.1f;
+    fTeleportHeight        = 0.2f;
+    bTeleportAutoShoot     = true;
+    bTeleportLookAt        = true;
+    fTeleportShootRate     = 35.0f;
+
+    // 4. Weapons & Power Overrides
+    bInfiniteAmmo          = true;
+    bOneHitKillDamage      = true;
+    bRapidFire             = true;
+    bInfiniteRange         = true;
+
+    // 5. God Mode
+    bGodMode               = true;
+
+    // 6. Movement & Physics Exploits
+    bEnableSpeedhack       = true;
+    fSpeedMultiplier       = 3.2f;
+    bEnableSuperJump       = true;
+    fJumpMultiplier        = 2.2f;
+    bInfiniteAirJump       = true;   // Fly / infinite double-jump
+    bZeroGravity           = false;
+    fGravityMultiplier     = 0.85f;
+    bBunnyhop              = true;
+
+    // 7. Grappling Hook Exploits
+    bInfiniteGrappleRange  = true;   // 9,999m reach
+    bSuperGrappleSpeed     = true;   // 4.5x reel force
+    fGrappleSpeedMult      = 4.5f;
+    bInstantGrappleBoost   = true;   // 0 cooldown
+    bGrappleMagnetAim      = true;   // Auto-lock onto players
+
+    // 8. Visuals & Chams
+    bEnableESP             = true;
+    bDrawBoxes             = true;
+    bDrawSkeleton          = true;
+    bDrawHeadCircle        = true;
+    bDrawTracers           = true;
+    bDrawHealthBar         = true;
+    bDrawInfoText          = true;
+    bEnableGlow            = true;
+    fGlowIntensity         = 1.5f;
+    bIgnoreTeammates       = true;
+    bIgnoreDead            = true;
+
+    bEnableChams           = true;
+    iChamsStyle            = 0;      // Solid Flat Silhouette
+    fChamsAlpha            = 0.95f;
+    fChamsJointSize        = 1.3f;
+    colChamsEnemyVis[0]    = 1.00f; colChamsEnemyVis[1] = 0.15f; colChamsEnemyVis[2] = 0.40f; colChamsEnemyVis[3] = 0.95f;
+    colChamsTeamVis[0]     = 0.15f; colChamsTeamVis[1]  = 0.65f; colChamsTeamVis[2]  = 1.00f; colChamsTeamVis[3]  = 0.85f;
+
+    // 9. Camera FOV
+    bCustomFOV             = true;
+    fCustomFOVValue        = 110.0f;
+
+    SaveConfig();
+    SetConfigStatus("⚡ HVH RAGE CONFIG ACTIVATED & SAVED!");
 }
 
 // ─── D3D11 hooks ──────────────────────────────────────────────────────────────
@@ -2197,96 +2285,31 @@ static void GiveWeapon(int weaponIndex) {
 }
 
 static void ApplyWeaponStatMods() {
+    if (!g_PlayerClass || !g_WeaponManagerClass) return;
+
     __try {
-        // 1. Mod all Weapon instances across the scene
-        if (g_WeaponClass) {
-            Il2CppArray* wArr = g_Il2Cpp.FindObjectsOfType(g_WeaponClass);
-            if (wArr) {
-                uintptr_t wCount = *(uintptr_t*)((char*)wArr + 0x18);
-                void** wItems = (void**)((char*)wArr + 0x20);
-                for (uintptr_t i = 0; i < wCount; i++) {
-                    void* w = wItems[i];
-                    if (!w) continue;
+        Il2CppArray* pArr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
+        if (!pArr) return;
 
-                    *(bool*)((char*)w + 0x120) = true; // canShoot
+        uintptr_t pCount = *(uintptr_t*)((char*)pArr + 0x18);
+        if (pCount == 0 || pCount > 64) return;
+        void** pItems = (void**)((char*)pArr + 0x20);
 
-                    if (bInfiniteAmmo) {
-                        *(int*)((char*)w + 0x114) = 99999; // currentAmmo
-                    }
-                    if (bRapidFire) {
-                        *(float*)((char*)w + 0x110) = 0.0f; // nextTimeToFire
-                    }
+        for (uintptr_t i = 0; i < pCount; i++) {
+            void* p = pItems[i];
+            if (!p || !g_Il2Cpp.IsLocalPlayer(p)) continue;
+            if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(p) || !g_Il2Cpp.IsSpawned(p)) break;
 
-                    void* wData = *(void**)((char*)w + 0x100);
-                    if (wData) {
-                        if (bOneHitKillDamage) {
-                            *(int*)((char*)wData + 0x18) = 99999; // minimumDamage
-                            *(int*)((char*)wData + 0x1C) = 99999; // maximumDamage
-                        }
-                        if (bInfiniteRange) {
-                            *(float*)((char*)wData + 0x20) = 9999.0f; // range
-                        }
-                        if (bRapidFire) {
-                            *(float*)((char*)wData + 0x24) = 0.001f; // attackRate
-                        }
-                        if (bInfiniteAmmo) {
-                            *(int*)((char*)wData + 0x30) = 99999; // maximumAttacks
-                        }
-                    }
-                }
+            void* wm = g_Il2Cpp.GetComponent(p, g_WeaponManagerClass);
+            if (!wm) break;
+
+            void* activeWeapon = *(void**)((char*)wm + 0x120);
+            if (activeWeapon && g_Il2Cpp.IsGameObjectActiveInHierarchy(activeWeapon)) {
+                *(bool*)((char*)activeWeapon + 0x120) = true; // canShoot
+                if (bInfiniteAmmo) *(int*)((char*)activeWeapon + 0x114) = 99999;
+                if (bRapidFire)    *(float*)((char*)activeWeapon + 0x110) = 0.0f;
             }
-        }
-
-        // 2. Target Local Player's WeaponManager directly
-        if (g_PlayerClass && g_WeaponManagerClass) {
-            Il2CppArray* pArr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
-            if (pArr) {
-                uintptr_t pCount = *(uintptr_t*)((char*)pArr + 0x18);
-                void** pItems = (void**)((char*)pArr + 0x20);
-
-                for (uintptr_t i = 0; i < pCount; i++) {
-                    void* p = pItems[i];
-                    if (p && g_Il2Cpp.IsLocalPlayer(p)) {
-                        void* wm = g_Il2Cpp.GetComponent(p, g_WeaponManagerClass);
-                        if (wm) {
-                            void* activeWeapon = *(void**)((char*)wm + 0x120);
-                            if (activeWeapon) {
-                                *(bool*)((char*)activeWeapon + 0x120) = true;
-                                if (bInfiniteAmmo) *(int*)((char*)activeWeapon + 0x114) = 99999;
-                                if (bRapidFire)    *(float*)((char*)activeWeapon + 0x110) = 0.0f;
-                            }
-
-                            void* wList = *(void**)((char*)wm + 0x110);
-                            if (wList) {
-                                Il2CppArray* itemsArr = *(Il2CppArray**)((char*)wList + 0x10);
-                                int listSize = *(int*)((char*)wList + 0x18);
-                                if (itemsArr && listSize > 0) {
-                                    void** wObjs = (void**)((char*)itemsArr + 0x20);
-                                    for (int w = 0; w < listSize; w++) {
-                                        void* weaponObj = wObjs[w];
-                                        if (weaponObj) {
-                                            *(bool*)((char*)weaponObj + 0x120) = true;
-                                            if (bInfiniteAmmo) *(int*)((char*)weaponObj + 0x114) = 99999;
-                                            if (bRapidFire)    *(float*)((char*)weaponObj + 0x110) = 0.0f;
-                                            void* wd = *(void**)((char*)weaponObj + 0x100);
-                                            if (wd) {
-                                                if (bOneHitKillDamage) {
-                                                    *(int*)((char*)wd + 0x18) = 99999;
-                                                    *(int*)((char*)wd + 0x1C) = 99999;
-                                                }
-                                                if (bInfiniteRange) *(float*)((char*)wd + 0x20) = 9999.0f;
-                                                if (bRapidFire)    *(float*)((char*)wd + 0x24) = 0.001f;
-                                                if (bInfiniteAmmo) *(int*)((char*)wd + 0x30) = 99999;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
+            break;
         }
     }
     __except(EXCEPTION_EXECUTE_HANDLER) {
@@ -2849,6 +2872,16 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
 
                 ImGui::Spacing();
                 ImGui::Separator();
+                ImGui::Spacing();
+
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.45f, 0.85f, 0.90f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f, 0.60f, 1.00f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.15f, 0.35f, 0.75f, 1.0f));
+                if (ImGui::Button("⚡ LOAD HVH RAGE CONFIG", ImVec2(-1, 38))) {
+                    LoadHvHConfig();
+                }
+                ImGui::PopStyleColor(3);
+
                 ImGui::Spacing();
 
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.55f, 0.12f, 0.12f, 0.85f));
@@ -3489,6 +3522,8 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
                         if (ImGui::Button("SAVE CONFIG TO DISK", ImVec2(-1, 38))) SaveConfig();
                         ImGui::Spacing();
                         if (ImGui::Button("LOAD CONFIG FROM DISK", ImVec2(-1, 38))) LoadConfig();
+                        ImGui::Spacing();
+                        if (ImGui::Button("LOAD HVH RAGE PRESET", ImVec2(-1, 38))) LoadHvHConfig();
                         ImGui::Spacing();
                         if (ImGui::Button("RESET TO DEFAULTS", ImVec2(-1, 34))) ResetConfigToDefaults();
 
