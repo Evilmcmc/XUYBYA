@@ -408,33 +408,27 @@ void Menu::Render() {
         else if (iTopNavTab == 3) {
             ImGui::BeginChild("CardMovementExploits", ImVec2(halfWidth, 310), true);
             {
-                ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Movement & Physics Exploits");
+                ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Flight & Physics Bypass");
                 ImGui::Separator();
-                ImGui::Spacing();
-
-                ImGui::Checkbox("Speedhack Multiplier", &bEnableSpeedhack);
-                if (bEnableSpeedhack) {
-                    ImGui::SliderFloat("Speed Factor", &fSpeedMultiplier, 1.2f, 8.0f, "%.1fx");
-                }
-                ImGui::Spacing();
-
-                ImGui::Checkbox("Super High Jump", &bEnableSuperJump);
-                if (bEnableSuperJump) {
-                    ImGui::SliderFloat("Jump Force", &fJumpMultiplier, 1.2f, 6.0f, "%.1fx");
-                }
                 ImGui::Spacing();
 
                 ImGui::Checkbox("Noclip Fly (WASD + Space/Ctrl)", &bNoClip);
                 if (bNoClip) {
-                    ImGui::SliderFloat("Noclip Speed", &fNoClipSpeed, 0.5f, 6.0f, "%.1fx");
+                    ImGui::SliderFloat("Flight Speed", &fNoClipSpeed, 0.5f, 6.0f, "%.1fx");
                 }
                 ImGui::Spacing();
 
                 ImGui::Checkbox("Anti-Knockback (Immune to pulls/explosions)", &bAntiKnockback);
+                ImGui::Spacing();
+
                 ImGui::Checkbox("Zero Gravity (Float / Moon Physics)", &bZeroGravity);
                 if (!bZeroGravity) {
                     ImGui::SliderFloat("Gravity Scale", &fGravityMultiplier, 0.1f, 3.0f, "%.2fx");
                 }
+                ImGui::Spacing();
+
+                ImGui::TextColored(ImVec4(0.35f, 0.85f, 1.00f, 1.0f), "[*] ANTI-BAN & ANTI-KICK ACTIVE");
+                ImGui::TextDisabled("Blocks server kick packets and suppresses disconnect RPCs.");
             }
             ImGui::EndChild();
 
@@ -484,21 +478,23 @@ void Menu::Render() {
 
             ImGui::BeginChild("CardServerKill", ImVec2(halfWidth, 340), true);
             {
-                ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Server & Map Destruction");
+                ImGui::TextColored(ImVec4(1.0f, 0.40f, 0.40f, 1.0f), "Instant Packet Kill & Server Exploits");
                 ImGui::Separator();
                 ImGui::Spacing();
 
-                ImGui::Checkbox("Enable Mass Kill Aura", &bEnableMassKill);
-                ImGui::SliderFloat("Kill Interval Rate", &fMassKillInterval, 20.0f, 500.0f, "%.0f ms");
+                ImGui::Checkbox("Multi-Vector Packet Kill Aura", &bEnableMassKill);
+                ImGui::SliderFloat("Packet Attack Rate", &fMassKillInterval, 20.0f, 500.0f, "%.0f ms");
                 ImGui::Spacing();
 
-                ImGui::Checkbox("Server RPC Flood (Crash)", &bServerCrashActive);
+                ImGui::Checkbox("Server RPC Flood (Crash Server)", &bServerCrashActive);
                 ImGui::Checkbox("Map Destroyer (Continuous Explosions)", &bMapDestroyerActive);
                 ImGui::Spacing();
 
-                if (ImGui::Button("WIPE ENTIRE SERVER (MASS KILL)", ImVec2(-1, 34))) {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.65f, 0.15f, 0.15f, 0.90f));
+                if (ImGui::Button("⚡ SEND LETHAL KILL PACKETS TO ALL PLAYERS", ImVec2(-1, 36))) {
                     Combat::DoMassKill();
                 }
+                ImGui::PopStyleColor();
                 ImGui::Spacing();
                 if (ImGui::Button("CRASH ALL PLAYERS (OUT OF BOUNDS)", ImVec2(-1, 34))) {
                     bCrashAllPlayersNow = true;

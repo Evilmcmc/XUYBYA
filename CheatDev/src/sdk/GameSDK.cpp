@@ -85,11 +85,13 @@ bool SDK::Initialize() {
         if (WeaponClass) {
             ClientTryShoot         = g_Il2Cpp.FindMethod(WeaponClass, "ClientTryShoot", 0);
             CMDShoot               = g_Il2Cpp.FindMethod(WeaponClass, "CMDShoot", 3);
+            StartSharedEffectsMethod = g_Il2Cpp.FindMethod(WeaponClass, "StartSharedEffects", 5);
         }
 
         if (WeaponManagerClass) {
             PickUpMethod           = g_Il2Cpp.FindMethod(WeaponManagerClass, "PickUp", 1);
             StartPickUpMethod      = g_Il2Cpp.FindMethod(WeaponManagerClass, "StartPickUp", 1);
+            TryUpdateGunGameWeaponMethod = g_Il2Cpp.FindMethod(WeaponManagerClass, "TryUpdateGunGameWeapon", 0);
         }
 
         if (DataPackerClass) {

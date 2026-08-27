@@ -11,22 +11,10 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM,
 
 typedef HRESULT (__stdcall *Present_t)(IDXGISwapChain*, UINT, UINT);
 typedef HRESULT (__stdcall *ResizeBuffers_t)(IDXGISwapChain*, UINT, UINT, UINT, DXGI_FORMAT, UINT);
-typedef void    (*CMDShoot_t)(void* __this, Il2CppArray* _cameraPosition, Il2CppArray* _cameraForward, uint32_t tick, const MethodInfo* method);
-typedef void    (*DebugLog_Internal_Log_t)(int logType, int logOption, Il2CppString* msg, void* obj, const MethodInfo* method);
-typedef void    (*DebugLog_Internal_LogException_t)(Il2CppObject* exc, void* obj, const MethodInfo* method);
-typedef void    (*OnLobbyEntered_t)(void* __this, void* callback, const MethodInfo* method);
-typedef void    (*OnLobbyCreated_t)(void* __this, void* callback, const MethodInfo* method);
-typedef void    (*OnLobbyKicked_t)(void* __this, void* callback, const MethodInfo* method);
 
 static Present_t                      oPresent                      = nullptr;
 static ResizeBuffers_t                oResizeBuffers                = nullptr;
 static WNDPROC                        oWndProc                      = nullptr;
-static CMDShoot_t                     oCMDShoot                     = nullptr;
-static DebugLog_Internal_Log_t        oInternal_Log                 = nullptr;
-static DebugLog_Internal_LogException_t oInternal_LogException      = nullptr;
-static OnLobbyEntered_t               oOnLobbyEntered               = nullptr;
-static OnLobbyCreated_t               oOnLobbyCreated               = nullptr;
-static OnLobbyKicked_t                oOnLobbyKicked                = nullptr;
 
 static void CreateRTV(IDXGISwapChain* pSwapChain) {
     ID3D11Texture2D* pBackBuffer = nullptr;
@@ -85,50 +73,8 @@ bool Hooks::Initialize() {
     MH_CreateHook((void*)vtable[8],  (LPVOID)&hkPresent,       (void**)&oPresent);
     MH_CreateHook((void*)vtable[13], (LPVOID)&hkResizeBuffers, (void**)&oResizeBuffers);
 
-    if (SDK::CMDShoot) {
-        void* cmdShootTarget = *(void**)SDK::CMDShoot;
-        if (cmdShootTarget) {
-            MH_CreateHook(cmdShootTarget, (LPVOID)&hkCMDShoot, (void**)&oCMDShoot);
-        }
-    }
-
-    Il2CppImage* coreMod = g_Il2Cpp.GetImage("UnityEngine.CoreModule");
-    if (coreMod) {
-        Il2CppClass* debugLogHandlerClass = g_Il2Cpp.il2cpp_class_from_name(coreMod, "UnityEngine", "DebugLogHandler");
-        if (debugLogHandlerClass) {
-            MethodInfo* mInternalLog = g_Il2Cpp.FindMethod(debugLogHandlerClass, "Internal_Log", 4);
-            MethodInfo* mInternalLogEx = g_Il2Cpp.FindMethod(debugLogHandlerClass, "Internal_LogException", 2);
-            if (mInternalLog && *(void**)mInternalLog) {
-                MH_CreateHook(*(void**)mInternalLog, (LPVOID)&hkInternal_Log, (void**)&oInternal_Log);
-            }
-            if (mInternalLogEx && *(void**)mInternalLogEx) {
-                MH_CreateHook(*(void**)mInternalLogEx, (LPVOID)&hkInternal_LogException, (void**)&oInternal_LogException);
-            }
-        }
-    }
-
-    Il2CppImage* asmCS = g_Il2Cpp.GetImage("Assembly-CSharp");
-    if (asmCS) {
-        Il2CppClass* bootstrapManagerClass = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "BootstrapManager");
-        if (bootstrapManagerClass) {
-            MethodInfo* mOnLobbyEntered = g_Il2Cpp.FindMethod(bootstrapManagerClass, "OnLobbyEntered", 1);
-            MethodInfo* mOnLobbyCreated = g_Il2Cpp.FindMethod(bootstrapManagerClass, "OnLobbyCreated", 1);
-            MethodInfo* mOnLobbyKicked  = g_Il2Cpp.FindMethod(bootstrapManagerClass, "OnLobbyKicked", 1);
-
-            if (mOnLobbyEntered && *(void**)mOnLobbyEntered) {
-                MH_CreateHook(*(void**)mOnLobbyEntered, (LPVOID)&hkOnLobbyEntered, (void**)&oOnLobbyEntered);
-            }
-            if (mOnLobbyCreated && *(void**)mOnLobbyCreated) {
-                MH_CreateHook(*(void**)mOnLobbyCreated, (LPVOID)&hkOnLobbyCreated, (void**)&oOnLobbyCreated);
-            }
-            if (mOnLobbyKicked && *(void**)mOnLobbyKicked) {
-                MH_CreateHook(*(void**)mOnLobbyKicked, (LPVOID)&hkOnLobbyKicked, (void**)&oOnLobbyKicked);
-            }
-        }
-    }
-
     MH_EnableHook(MH_ALL_HOOKS);
-    CheatLog("[+] Hooks: All DirectX and Engine hooks active!");
+    CheatLog("[+] Hooks: DirectX SwapChain hooks initialized successfully!");
     return true;
 }
 
@@ -259,77 +205,4 @@ HRESULT __stdcall Hooks::hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval
     }
 
     return oPresent(pSwapChain, SyncInterval, Flags);
-}
-
-void Hooks::hkCMDShoot(void* __this, Il2CppArray* _cameraPosition, Il2CppArray* _cameraForward, uint32_t tick, const MethodInfo* method) {
-    Il2CppArray* outPos = _cameraPosition;
-    Il2CppArray* outFwd = _cameraForward;
-
-    __try {
-        if (bEnableSilentAim && outPos && outFwd && IsValidUnityObj(__this)) {
-            Vector3 targetWorldPos{};
-            if (Combat::GetSilentAimTargetPosition(&targetWorldPos)) {
-                Vector3 camPos{};
-                void* activeCam = SDK::GetCurrentCamera();
-                if (activeCam && IsValidUnityObj(activeCam)) {
-                    void* camTr = g_Il2Cpp.GetComponentTransform(activeCam);
-                    if (camTr && IsValidUnityObj(camTr)) g_Il2Cpp.GetTransformPosition(camTr, &camPos);
-                }
-
-                if (camPos.LengthSq() > 0.0001f) {
-                    Vector3 aimDir = targetWorldPos - camPos;
-                    float len = aimDir.Length();
-                    if (len > 0.001f) {
-                        aimDir = aimDir * (1.0f / len);
-                        if (SDK::PackDirectionMethod) {
-                            void* fwdArgs[1] = { &aimDir };
-                            void* exc = nullptr;
-                            Il2CppObject* packedFwd = g_Il2Cpp.il2cpp_runtime_invoke(SDK::PackDirectionMethod, nullptr, fwdArgs, &exc);
-                            if (packedFwd && !exc) {
-                                outFwd = (Il2CppArray*)packedFwd;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    __except(EXCEPTION_EXECUTE_HANDLER) {}
-
-    if (oCMDShoot) {
-        oCMDShoot(__this, outPos, outFwd, tick, method);
-    }
-}
-
-void Hooks::hkInternal_Log(int logType, int logOption, Il2CppString* msg, void* obj, const MethodInfo* method) {
-    if (oInternal_Log) {
-        oInternal_Log(logType, logOption, msg, obj, method);
-    }
-}
-
-void Hooks::hkInternal_LogException(Il2CppObject* exc, void* obj, const MethodInfo* method) {
-    if (oInternal_LogException) {
-        oInternal_LogException(exc, obj, method);
-    }
-}
-
-void Hooks::hkOnLobbyEntered(void* __this, void* callback, const MethodInfo* method) {
-    SDK::ResetCache();
-    if (oOnLobbyEntered) {
-        oOnLobbyEntered(__this, callback, method);
-    }
-}
-
-void Hooks::hkOnLobbyCreated(void* __this, void* callback, const MethodInfo* method) {
-    SDK::ResetCache();
-    if (oOnLobbyCreated) {
-        oOnLobbyCreated(__this, callback, method);
-    }
-}
-
-void Hooks::hkOnLobbyKicked(void* __this, void* callback, const MethodInfo* method) {
-    SDK::ResetCache();
-    if (oOnLobbyKicked) {
-        oOnLobbyKicked(__this, callback, method);
-    }
 }

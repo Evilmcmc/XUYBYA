@@ -164,6 +164,7 @@ void Combat::DoMassKill() {
             if (!g_Il2Cpp.GetRigidbodyPosition(targetRb, &targetHeadPos)) continue;
             targetHeadPos = targetHeadPos + Vector3(0.0f, 0.40f, 0.0f);
 
+            // Vector 1: Authoritative CMDShoot Raycast Packet Injection
             if (SDK::PackDirectionMethod && SDK::PackVector3Method && SDK::CMDShoot) {
                 Vector3 aimDir = targetHeadPos - localCamPos;
                 float len = aimDir.Length();
@@ -186,6 +187,30 @@ void Combat::DoMassKill() {
                 }
             }
 
+            // Vector 2: Instant High-Damage Packet Kill (StartSharedEffects / Observers Broadcast)
+            if (SDK::StartSharedEffectsMethod && SDK::PackVector3Method) {
+                void* posArgs[1] = { &targetHeadPos };
+                void* excPos = nullptr;
+                Il2CppObject* packedHit = g_Il2Cpp.il2cpp_runtime_invoke(SDK::PackVector3Method, nullptr, posArgs, &excPos);
+                if (packedHit && !excPos) {
+                    int hitPlayerId = 0;
+                    bool didHit = true;
+                    short lethalDamage = 32767;
+                    bool applyDmg = true;
+                    void* effArgs[5] = { packedHit, &hitPlayerId, &didHit, &lethalDamage, &applyDmg };
+                    void* excEff = nullptr;
+                    g_Il2Cpp.il2cpp_runtime_invoke(SDK::StartSharedEffectsMethod, activeWeapon, effArgs, &excEff);
+                }
+            }
+
+            // Vector 3: Direct Health Packet Depletion
+            if (pl.healthComp && SDK::CMDChangeCurrentHealth) {
+                int deadHealth = 0;
+                void* hArgs[1] = { &deadHealth };
+                void* excH = nullptr;
+                g_Il2Cpp.il2cpp_runtime_invoke(SDK::CMDChangeCurrentHealth, pl.healthComp, hArgs, &excH);
+            }
+
             if (SDK::ClientTryShoot) {
                 void* excShoot = nullptr;
                 g_Il2Cpp.il2cpp_runtime_invoke(SDK::ClientTryShoot, activeWeapon, nullptr, &excShoot);
@@ -195,7 +220,7 @@ void Combat::DoMassKill() {
         }
 
         if (killedCount > 0) {
-            CheatLog("Mass Kill Aura: annihilated %d target(s)", killedCount);
+            CheatLog("[PACKET-KILL] Annihilated %d player(s) via server packets", killedCount);
         }
     }
     __except(EXCEPTION_EXECUTE_HANDLER) {}
