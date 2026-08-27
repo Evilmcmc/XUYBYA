@@ -65,60 +65,6 @@ static DWORD_PTR* GetSwapChainVTable() {
     return vtable;
 }
 
-typedef void (*tCMDShoot)(void* __this, void* _cameraPosition, void* _cameraForward, uint32_t tick, const MethodInfo* method);
-static tCMDShoot oCMDShoot = nullptr;
-
-static void hkCMDShoot(void* __this, void* _cameraPosition, void* _cameraForward, uint32_t tick, const MethodInfo* method) {
-    if (!__this || !g_IsInitialized || g_Uninjecting) {
-        if (oCMDShoot) oCMDShoot(__this, _cameraPosition, _cameraForward, tick, method);
-        return;
-    }
-
-    try {
-        if (bEnableSilentAim) {
-            Vector3 targetPos{};
-            if (Combat::GetSilentAimTargetPosition(&targetPos)) {
-                Vector3 camPos{};
-                void* activeCam = SDK::GetCurrentCamera();
-                if (activeCam && IsValidUnityObj(activeCam)) {
-                    void* camTr = g_Il2Cpp.GetComponentTransform(activeCam);
-                    if (camTr && IsValidUnityObj(camTr)) {
-                        g_Il2Cpp.GetTransformPosition(camTr, &camPos);
-                    }
-                }
-
-                if (camPos.LengthSq() < 0.001f && SDK::UnpackShortMethod && SDK::UnpackDirectionMethod) {
-                    void* args[1] = { _cameraPosition };
-                    void* exc = nullptr;
-                    Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(SDK::UnpackDirectionMethod, nullptr, args, &exc);
-                    if (!exc && res && IsValidMemPtr(res, 0x1C)) {
-                        camPos = *(Vector3*)((char*)res + 0x10);
-                    }
-                }
-
-                Vector3 aimDir = targetPos - camPos;
-                float len = aimDir.Length();
-                if (len > 0.001f) {
-                    aimDir = aimDir * (1.0f / len);
-                    if (SDK::PackDirectionMethod) {
-                        void* pArgs[1] = { &aimDir };
-                        void* exc = nullptr;
-                        Il2CppObject* newPackedFwd = g_Il2Cpp.il2cpp_runtime_invoke(SDK::PackDirectionMethod, nullptr, pArgs, &exc);
-                        if (!exc && newPackedFwd && IsValidMemPtr(newPackedFwd, 0x18)) {
-                            _cameraForward = newPackedFwd;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    catch (...) {}
-
-    if (oCMDShoot) {
-        oCMDShoot(__this, _cameraPosition, _cameraForward, tick, method);
-    }
-}
-
 bool Hooks::Initialize() {
     DWORD_PTR* vtable = GetSwapChainVTable();
     if (!vtable) return false;
@@ -127,20 +73,10 @@ bool Hooks::Initialize() {
     MH_CreateHook((void*)vtable[8],  (LPVOID)&hkPresent,       (void**)&oPresent);
     MH_CreateHook((void*)vtable[13], (LPVOID)&hkResizeBuffers, (void**)&oResizeBuffers);
 
-    if (SDK::CMDShoot) {
-        void* methodPtr = *(void**)SDK::CMDShoot;
-        if (methodPtr) {
-            MH_CreateHook(methodPtr, (LPVOID)&hkCMDShoot, (void**)&oCMDShoot);
-            CheatLog("[+] Weapon::CMDShoot hooked at %p for Silent Aim!", methodPtr);
-        }
-    }
-
     MH_EnableHook(MH_ALL_HOOKS);
-    CheatLog("[+] Hooks: DirectX SwapChain & Game methods hooked successfully!");
+    CheatLog("[+] Hooks: DirectX SwapChain hooks initialized successfully!");
     return true;
 }
-
-
 
 void Hooks::Shutdown() {
     if (g_hWnd && oWndProc) {
@@ -155,37 +91,40 @@ LRESULT __stdcall Hooks::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPa
     if (!g_IsInitialized || !oWndProc || g_Uninjecting)
         return DefWindowProc(hWnd, uMsg, wParam, lParam);
 
-    if (uMsg == WM_KEYDOWN || uMsg == WM_SYSKEYDOWN) {
-        if (wParam == VK_INSERT || wParam == VK_F1) {
-            g_ShowMenu = !g_ShowMenu;
-            if (g_ShowMenu) {
-                ClipCursor(NULL);
-                g_Il2Cpp.SetCursorState(true);
+    __try {
+        if (uMsg == WM_KEYDOWN || uMsg == WM_SYSKEYDOWN) {
+            if (wParam == VK_INSERT || wParam == VK_F1) {
+                g_ShowMenu = !g_ShowMenu;
+                if (g_ShowMenu) {
+                    ClipCursor(NULL);
+                    g_Il2Cpp.SetCursorState(true);
+                }
+                ImGui::GetIO().MouseDrawCursor = g_ShowMenu;
+                return 0;
             }
-            ImGui::GetIO().MouseDrawCursor = g_ShowMenu;
-            return 0;
+            if (wParam == VK_ESCAPE && g_ShowMenu) {
+                g_ShowMenu = false;
+                ImGui::GetIO().MouseDrawCursor = false;
+                return 0;
+            }
         }
-        if (wParam == VK_ESCAPE && g_ShowMenu) {
-            g_ShowMenu = false;
-            ImGui::GetIO().MouseDrawCursor = false;
-            return 0;
+
+        if (g_ShowMenu) {
+            ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam);
+
+            if (uMsg == WM_SETCURSOR) {
+                SetCursor(NULL);
+                return 1;
+            }
+
+            if ((uMsg >= WM_MOUSEFIRST && uMsg <= WM_MOUSELAST) ||
+                (uMsg >= WM_KEYFIRST && uMsg <= WM_KEYLAST) ||
+                uMsg == WM_CHAR || uMsg == WM_INPUT) {
+                return 0;
+            }
         }
     }
-
-    if (g_ShowMenu) {
-        ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam);
-
-        if (uMsg == WM_SETCURSOR) {
-            SetCursor(NULL);
-            return 1;
-        }
-
-        if ((uMsg >= WM_MOUSEFIRST && uMsg <= WM_MOUSELAST) ||
-            (uMsg >= WM_KEYFIRST && uMsg <= WM_KEYLAST) ||
-            uMsg == WM_CHAR || uMsg == WM_INPUT) {
-            return 0;
-        }
-    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {}
 
     return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
 }
@@ -200,73 +139,77 @@ HRESULT __stdcall Hooks::hkResizeBuffers(IDXGISwapChain* pSwapChain, UINT Buffer
 HRESULT __stdcall Hooks::hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT Flags) {
     if (g_Uninjecting) return oPresent(pSwapChain, SyncInterval, Flags);
 
-    if (!g_IsInitialized) {
-        if (SUCCEEDED(pSwapChain->GetDevice(__uuidof(ID3D11Device), (void**)&g_pd3dDevice))) {
-            g_pd3dDevice->GetImmediateContext(&g_pd3dDeviceContext);
+    __try {
+        if (!g_IsInitialized) {
+            if (SUCCEEDED(pSwapChain->GetDevice(__uuidof(ID3D11Device), (void**)&g_pd3dDevice))) {
+                g_pd3dDevice->GetImmediateContext(&g_pd3dDeviceContext);
 
-            DXGI_SWAP_CHAIN_DESC sd;
-            pSwapChain->GetDesc(&sd);
-            g_hWnd = sd.OutputWindow;
+                DXGI_SWAP_CHAIN_DESC sd;
+                pSwapChain->GetDesc(&sd);
+                g_hWnd = sd.OutputWindow;
 
-            CreateRTV(pSwapChain);
+                CreateRTV(pSwapChain);
 
-            oWndProc = (WNDPROC)SetWindowLongPtr(g_hWnd, GWLP_WNDPROC, (LONG_PTR)WndProc);
+                oWndProc = (WNDPROC)SetWindowLongPtr(g_hWnd, GWLP_WNDPROC, (LONG_PTR)WndProc);
 
-            ImGui::CreateContext();
+                ImGui::CreateContext();
+                ImGuiIO& io = ImGui::GetIO();
+                io.ConfigFlags &= ~ImGuiConfigFlags_NoMouseCursorChange;
+                io.IniFilename  = nullptr;
+                io.FontGlobalScale = 1.0f;
+
+                // Load Google Sans / Segoe UI modern font
+                if (GetFileAttributesA("C:\\Windows\\Fonts\\segoeui.ttf") != INVALID_FILE_ATTRIBUTES) {
+                    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeui.ttf", 16.5f);
+                } else if (GetFileAttributesA("C:\\Windows\\Fonts\\arial.ttf") != INVALID_FILE_ATTRIBUTES) {
+                    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\arial.ttf", 16.0f);
+                }
+
+                Menu::InitializeTheme();
+
+                ImGui_ImplWin32_Init(g_hWnd);
+                ImGui_ImplDX11_Init(g_pd3dDevice, g_pd3dDeviceContext);
+
+                g_IsInitialized = true;
+            } else {
+                return oPresent(pSwapChain, SyncInterval, Flags);
+            }
+        }
+
+        if (!g_mainRenderTargetView) CreateRTV(pSwapChain);
+
+        if (g_pd3dDeviceContext && g_mainRenderTargetView && !g_Uninjecting) {
+            ImGui_ImplDX11_NewFrame();
+            ImGui_ImplWin32_NewFrame();
+            ImGui::NewFrame();
+
             ImGuiIO& io = ImGui::GetIO();
-            io.ConfigFlags &= ~ImGuiConfigFlags_NoMouseCursorChange;
-            io.IniFilename  = nullptr;
-            io.FontGlobalScale = 1.0f;
 
-            // Load Google Sans / Segoe UI modern font
-            if (GetFileAttributesA("C:\\Windows\\Fonts\\segoeui.ttf") != INVALID_FILE_ATTRIBUTES) {
-                io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeui.ttf", 16.5f);
-            } else if (GetFileAttributesA("C:\\Windows\\Fonts\\arial.ttf") != INVALID_FILE_ATTRIBUTES) {
-                io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\arial.ttf", 16.0f);
+            // 1. Entities and ESP snapshot
+            SDK::ScanEntities();
+            SDK::UpdateESPData();
+            SDK::OptimizePerformance();
+
+            // 2. Feature dispatchers
+            Exploits::Update();
+            Combat::Update(io);
+
+            // 3. Render overlays
+            Visuals::Render(io);
+
+            // 4. Render Menu
+            io.MouseDrawCursor = g_ShowMenu;
+            if (g_ShowMenu) {
+                Menu::Render();
             }
 
-            Menu::InitializeTheme();
-
-            ImGui_ImplWin32_Init(g_hWnd);
-            ImGui_ImplDX11_Init(g_pd3dDevice, g_pd3dDeviceContext);
-
-            g_IsInitialized = true;
-        } else {
-            return oPresent(pSwapChain, SyncInterval, Flags);
+            ImGui::Render();
+            g_pd3dDeviceContext->OMSetRenderTargets(1, &g_mainRenderTargetView, NULL);
+            ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
         }
     }
-
-    if (!g_mainRenderTargetView) CreateRTV(pSwapChain);
-
-    if (g_pd3dDeviceContext && g_mainRenderTargetView && !g_Uninjecting) {
-        ImGui_ImplDX11_NewFrame();
-        ImGui_ImplWin32_NewFrame();
-        ImGui::NewFrame();
-
-        ImGuiIO& io = ImGui::GetIO();
-
-        // 1. Entities and ESP snapshot
-        SDK::ScanEntities();
-        SDK::UpdateESPData();
-        SDK::OptimizePerformance();
-
-        // 2. Feature dispatchers
-        Exploits::Update();
-        Combat::Update(io);
-
-        // 3. Render overlays
-        Visuals::Render(io);
-
-        // 4. Render Menu
-        io.MouseDrawCursor = g_ShowMenu;
-        if (g_ShowMenu) {
-            Menu::Render();
-        }
-
-        ImGui::Render();
-        g_pd3dDeviceContext->OMSetRenderTargets(1, &g_mainRenderTargetView, NULL);
-        ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {}
 
     return oPresent(pSwapChain, SyncInterval, Flags);
 }
+

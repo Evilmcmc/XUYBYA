@@ -374,68 +374,78 @@ public:
         if (!targetClass || !il2cpp_class_get_type || !il2cpp_type_get_object || !il2cpp_runtime_invoke)
             return nullptr;
 
-        void* typeObj = il2cpp_type_get_object(il2cpp_class_get_type(targetClass));
-        if (!typeObj) return nullptr;
+        __try {
+            void* typeObj = il2cpp_type_get_object(il2cpp_class_get_type(targetClass));
+            if (!typeObj) return nullptr;
 
-        void* args[1] = { typeObj };
-        void* exc = nullptr;
-        Il2CppObject* res = nullptr;
+            void* args[1] = { typeObj };
+            void* exc = nullptr;
+            Il2CppObject* res = nullptr;
 
-        if (methodFindObjectsOfType) {
-            res = il2cpp_runtime_invoke(methodFindObjectsOfType, nullptr, args, &exc);
+            if (methodFindObjectsOfType) {
+                res = il2cpp_runtime_invoke(methodFindObjectsOfType, nullptr, args, &exc);
+            }
+            if ((!res || exc) && methodFindObjectsOfTypeAll) {
+                exc = nullptr;
+                res = il2cpp_runtime_invoke(methodFindObjectsOfTypeAll, nullptr, args, &exc);
+            }
+
+            if (exc || !res || !IsValidMemPtr(res, 0x20)) return nullptr;
+            return (Il2CppArray*)res;
         }
-        if ((!res || exc) && methodFindObjectsOfTypeAll) {
-            exc = nullptr;
-            res = il2cpp_runtime_invoke(methodFindObjectsOfTypeAll, nullptr, args, &exc);
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return nullptr;
         }
-
-        if (exc || !res || !IsValidMemPtr(res, 0x20)) return nullptr;
-        return (Il2CppArray*)res;
     }
 
     void* GetMainCamera() {
         EnsureThreadAttached();
-        // 1. Try Camera.main
-        if (methodCameraGetMain && il2cpp_runtime_invoke) {
-            void* exc = nullptr;
-            Il2CppObject* res = il2cpp_runtime_invoke(methodCameraGetMain, nullptr, nullptr, &exc);
-            if (!exc && res && IsValidUnityObj(res)) return (void*)res;
-        }
+        __try {
+            // 1. Try Camera.main
+            if (methodCameraGetMain && il2cpp_runtime_invoke) {
+                void* exc = nullptr;
+                Il2CppObject* res = il2cpp_runtime_invoke(methodCameraGetMain, nullptr, nullptr, &exc);
+                if (!exc && res && IsValidUnityObj(res)) return (void*)res;
+            }
 
-        // 2. Try Camera.current
-        if (methodCameraGetCurrent && il2cpp_runtime_invoke) {
-            void* exc = nullptr;
-            Il2CppObject* res = il2cpp_runtime_invoke(methodCameraGetCurrent, nullptr, nullptr, &exc);
-            if (!exc && res && IsValidUnityObj(res)) return (void*)res;
-        }
+            // 2. Try Camera.current
+            if (methodCameraGetCurrent && il2cpp_runtime_invoke) {
+                void* exc = nullptr;
+                Il2CppObject* res = il2cpp_runtime_invoke(methodCameraGetCurrent, nullptr, nullptr, &exc);
+                if (!exc && res && IsValidUnityObj(res)) return (void*)res;
+            }
 
-        // 3. Try Camera.allCameras
-        if (methodCameraGetAll && il2cpp_runtime_invoke) {
-            void* exc = nullptr;
-            Il2CppArray* arr = (Il2CppArray*)il2cpp_runtime_invoke(methodCameraGetAll, nullptr, nullptr, &exc);
-            if (!exc && arr && IsValidMemPtr(arr, 0x28)) {
-                uintptr_t cnt = *(uintptr_t*)((char*)arr + 0x18);
-                if (cnt > 0 && cnt <= 32) {
-                    void** items = (void**)((char*)arr + 0x20);
-                    for (uintptr_t i = 0; i < cnt; i++) {
-                        if (items[i] && IsValidUnityObj(items[i])) return items[i];
+            // 3. Try Camera.allCameras
+            if (methodCameraGetAll && il2cpp_runtime_invoke) {
+                void* exc = nullptr;
+                Il2CppArray* arr = (Il2CppArray*)il2cpp_runtime_invoke(methodCameraGetAll, nullptr, nullptr, &exc);
+                if (!exc && arr && IsValidMemPtr(arr, 0x28)) {
+                    uintptr_t cnt = *(uintptr_t*)((char*)arr + 0x18);
+                    if (cnt > 0 && cnt <= 32) {
+                        void** items = (void**)((char*)arr + 0x20);
+                        for (uintptr_t i = 0; i < cnt; i++) {
+                            if (items[i] && IsValidUnityObj(items[i])) return items[i];
+                        }
+                    }
+                }
+            }
+
+            // 4. Fallback: FindObjectsOfType(classCamera)
+            if (classCamera) {
+                Il2CppArray* cams = FindObjectsOfType(classCamera);
+                if (cams && IsValidMemPtr(cams, 0x28)) {
+                    uintptr_t cnt = *(uintptr_t*)((char*)cams + 0x18);
+                    if (cnt > 0 && cnt <= 32) {
+                        void** items = (void**)((char*)cams + 0x20);
+                        for (uintptr_t i = 0; i < cnt; i++) {
+                            if (items[i] && IsValidUnityObj(items[i])) return items[i];
+                        }
                     }
                 }
             }
         }
-
-        // 4. Fallback: FindObjectsOfType(classCamera)
-        if (classCamera) {
-            Il2CppArray* cams = FindObjectsOfType(classCamera);
-            if (cams && IsValidMemPtr(cams, 0x28)) {
-                uintptr_t cnt = *(uintptr_t*)((char*)cams + 0x18);
-                if (cnt > 0 && cnt <= 32) {
-                    void** items = (void**)((char*)cams + 0x20);
-                    for (uintptr_t i = 0; i < cnt; i++) {
-                        if (items[i] && IsValidUnityObj(items[i])) return items[i];
-                    }
-                }
-            }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return nullptr;
         }
         return nullptr;
     }
@@ -445,23 +455,33 @@ public:
         if (!IsValidUnityObj(componentOrObj) || !targetTypeClass || !methodComponentGetComp || !il2cpp_runtime_invoke)
             return nullptr;
 
-        void* typeObj = il2cpp_type_get_object(il2cpp_class_get_type(targetTypeClass));
-        if (!typeObj) return nullptr;
+        __try {
+            void* typeObj = il2cpp_type_get_object(il2cpp_class_get_type(targetTypeClass));
+            if (!typeObj) return nullptr;
 
-        void* args[1] = { typeObj };
-        void* exc = nullptr;
-        Il2CppObject* res = il2cpp_runtime_invoke(methodComponentGetComp, componentOrObj, args, &exc);
-        if (!exc && res && IsValidUnityObj(res)) return (void*)res;
+            void* args[1] = { typeObj };
+            void* exc = nullptr;
+            Il2CppObject* res = il2cpp_runtime_invoke(methodComponentGetComp, componentOrObj, args, &exc);
+            if (!exc && res && IsValidUnityObj(res)) return (void*)res;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return nullptr;
+        }
         return nullptr;
     }
 
     void* GetComponentTransform(void* component) {
         if (!IsValidUnityObj(component)) return nullptr;
         EnsureThreadAttached();
-        if (methodComponentGetTrans && il2cpp_runtime_invoke) {
-            void* exc = nullptr;
-            Il2CppObject* res = il2cpp_runtime_invoke(methodComponentGetTrans, component, nullptr, &exc);
-            if (!exc && res && IsValidUnityObj(res)) return (void*)res;
+        __try {
+            if (methodComponentGetTrans && il2cpp_runtime_invoke) {
+                void* exc = nullptr;
+                Il2CppObject* res = il2cpp_runtime_invoke(methodComponentGetTrans, component, nullptr, &exc);
+                if (!exc && res && IsValidUnityObj(res)) return (void*)res;
+            }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return nullptr;
         }
         return nullptr;
     }
@@ -469,10 +489,15 @@ public:
     void* GetGameObject(void* component) {
         if (!IsValidUnityObj(component)) return nullptr;
         EnsureThreadAttached();
-        if (methodComponentGetGameObject && il2cpp_runtime_invoke) {
-            void* exc = nullptr;
-            Il2CppObject* res = il2cpp_runtime_invoke(methodComponentGetGameObject, component, nullptr, &exc);
-            if (!exc && res && IsValidUnityObj(res)) return (void*)res;
+        __try {
+            if (methodComponentGetGameObject && il2cpp_runtime_invoke) {
+                void* exc = nullptr;
+                Il2CppObject* res = il2cpp_runtime_invoke(methodComponentGetGameObject, component, nullptr, &exc);
+                if (!exc && res && IsValidUnityObj(res)) return (void*)res;
+            }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return nullptr;
         }
         return nullptr;
     }
@@ -480,15 +505,20 @@ public:
     bool IsGameObjectActiveInHierarchy(void* componentOrGameObject) {
         if (!IsValidUnityObj(componentOrGameObject)) return false;
         EnsureThreadAttached();
-        void* go = methodComponentGetGameObject ? GetGameObject(componentOrGameObject) : componentOrGameObject;
-        if (!go || !IsValidUnityObj(go)) go = componentOrGameObject;
+        __try {
+            void* go = methodComponentGetGameObject ? GetGameObject(componentOrGameObject) : componentOrGameObject;
+            if (!go || !IsValidUnityObj(go)) go = componentOrGameObject;
 
-        if (methodGameObjectGetActiveInH && il2cpp_runtime_invoke) {
-            void* exc = nullptr;
-            Il2CppObject* res = il2cpp_runtime_invoke(methodGameObjectGetActiveInH, go, nullptr, &exc);
-            if (!exc && res && IsValidMemPtr(res, 0x18)) {
-                return *(bool*)((char*)res + 0x10);
+            if (methodGameObjectGetActiveInH && il2cpp_runtime_invoke) {
+                void* exc = nullptr;
+                Il2CppObject* res = il2cpp_runtime_invoke(methodGameObjectGetActiveInH, go, nullptr, &exc);
+                if (!exc && res && IsValidMemPtr(res, 0x18)) {
+                    return *(bool*)((char*)res + 0x10);
+                }
             }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
         }
         return true;
     }
@@ -496,13 +526,18 @@ public:
     bool GetTransformPosition(void* transform, Vector3* outPos) {
         if (!IsValidUnityObj(transform) || !outPos) return false;
         EnsureThreadAttached();
-        if (methodTransformGetPos && il2cpp_runtime_invoke) {
-            void* exc = nullptr;
-            Il2CppObject* res = il2cpp_runtime_invoke(methodTransformGetPos, transform, nullptr, &exc);
-            if (!exc && res && IsValidMemPtr(res, 0x1C)) {
-                *outPos = *(Vector3*)((char*)res + 0x10);
-                return true;
+        __try {
+            if (methodTransformGetPos && il2cpp_runtime_invoke) {
+                void* exc = nullptr;
+                Il2CppObject* res = il2cpp_runtime_invoke(methodTransformGetPos, transform, nullptr, &exc);
+                if (!exc && res && IsValidMemPtr(res, 0x1C)) {
+                    *outPos = *(Vector3*)((char*)res + 0x10);
+                    return true;
+                }
             }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
         }
         return false;
     }
@@ -510,82 +545,96 @@ public:
     bool GetRigidbodyPosition(void* rb, Vector3* outPos) {
         if (!IsValidMemPtr(rb, 0x18) || !outPos) return false;
         EnsureThreadAttached();
-
-        // 1. Try direct Rigidbody.get_position
-        if (methodRbGetPos && il2cpp_runtime_invoke) {
-            void* exc = nullptr;
-            Il2CppObject* res = il2cpp_runtime_invoke(methodRbGetPos, rb, nullptr, &exc);
-            if (!exc && res && IsValidMemPtr(res, 0x1C)) {
-                *outPos = *(Vector3*)((char*)res + 0x10);
-                return true;
+        __try {
+            // 1. Try direct Rigidbody.get_position
+            if (methodRbGetPos && il2cpp_runtime_invoke) {
+                void* exc = nullptr;
+                Il2CppObject* res = il2cpp_runtime_invoke(methodRbGetPos, rb, nullptr, &exc);
+                if (!exc && res && IsValidMemPtr(res, 0x1C)) {
+                    *outPos = *(Vector3*)((char*)res + 0x10);
+                    return true;
+                }
             }
+
+            // 2. Try Component.get_transform -> Transform.get_position
+            void* tr = GetComponentTransform(rb);
+            if (tr && IsValidUnityObj(tr)) {
+                if (GetTransformPosition(tr, outPos)) return true;
+            }
+
+            // 3. Try direct Transform.get_position
+            if (GetTransformPosition(rb, outPos)) return true;
         }
-
-        // 2. Try Component.get_transform -> Transform.get_position
-        void* tr = GetComponentTransform(rb);
-        if (tr && IsValidUnityObj(tr)) {
-            if (GetTransformPosition(tr, outPos)) return true;
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
         }
-
-        // 3. Try direct Transform.get_position
-        if (GetTransformPosition(rb, outPos)) return true;
-
         return false;
     }
 
     bool WorldToScreen(void* camera, Vector3 worldPos, Vector3* outScreen) {
         if (!IsValidUnityObj(camera) || !outScreen) return false;
         EnsureThreadAttached();
-        if (methodWorldToScreen && il2cpp_runtime_invoke) {
-            void* args[1] = { &worldPos };
-            void* exc = nullptr;
-            Il2CppObject* res = il2cpp_runtime_invoke(methodWorldToScreen, camera, args, &exc);
-            if (!exc && res && IsValidMemPtr(res, 0x1C)) {
-                *outScreen = *(Vector3*)((char*)res + 0x10);
-                return true;
+        __try {
+            if (methodWorldToScreen && il2cpp_runtime_invoke) {
+                void* args[1] = { &worldPos };
+                void* exc = nullptr;
+                Il2CppObject* res = il2cpp_runtime_invoke(methodWorldToScreen, camera, args, &exc);
+                if (!exc && res && IsValidMemPtr(res, 0x1C)) {
+                    *outScreen = *(Vector3*)((char*)res + 0x10);
+                    return true;
+                }
             }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
         }
         return false;
     }
 
-
     bool IsLocalPlayer(void* networkBehaviourObj) {
         if (!IsValidUnityObj(networkBehaviourObj)) return false;
-
-        // Try cached method or resolve dynamically from object class
-        const MethodInfo* mOwner = methodGetIsOwner;
-        if (!mOwner && il2cpp_object_get_class) {
-            Il2CppClass* klass = (Il2CppClass*)il2cpp_object_get_class((Il2CppObject*)networkBehaviourObj);
-            if (klass) mOwner = FindMethod(klass, "get_IsOwner", 0);
-        }
-
-        if (mOwner && il2cpp_runtime_invoke) {
-            EnsureThreadAttached();
-            void* exc = nullptr;
-            Il2CppObject* res = il2cpp_runtime_invoke(mOwner, networkBehaviourObj, nullptr, &exc);
-            if (!exc && res && IsValidMemPtr(res, 0x18)) {
-                return *(bool*)((char*)res + 0x10);
+        EnsureThreadAttached();
+        __try {
+            const MethodInfo* mOwner = methodGetIsOwner;
+            if (!mOwner && il2cpp_object_get_class) {
+                Il2CppClass* klass = (Il2CppClass*)il2cpp_object_get_class((Il2CppObject*)networkBehaviourObj);
+                if (klass) mOwner = FindMethod(klass, "get_IsOwner", 0);
             }
+
+            if (mOwner && il2cpp_runtime_invoke) {
+                void* exc = nullptr;
+                Il2CppObject* res = il2cpp_runtime_invoke(mOwner, networkBehaviourObj, nullptr, &exc);
+                if (!exc && res && IsValidMemPtr(res, 0x18)) {
+                    return *(bool*)((char*)res + 0x10);
+                }
+            }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
         }
         return false;
     }
 
     bool IsSpawned(void* networkBehaviourObj) {
         if (!IsValidUnityObj(networkBehaviourObj)) return true;
-
-        const MethodInfo* mSpawned = methodGetIsSpawned;
-        if (!mSpawned && il2cpp_object_get_class) {
-            Il2CppClass* klass = (Il2CppClass*)il2cpp_object_get_class((Il2CppObject*)networkBehaviourObj);
-            if (klass) mSpawned = FindMethod(klass, "get_IsSpawned", 0);
-        }
-
-        if (mSpawned && il2cpp_runtime_invoke) {
-            EnsureThreadAttached();
-            void* exc = nullptr;
-            Il2CppObject* res = il2cpp_runtime_invoke(mSpawned, networkBehaviourObj, nullptr, &exc);
-            if (!exc && res && IsValidMemPtr(res, 0x18)) {
-                return *(bool*)((char*)res + 0x10);
+        EnsureThreadAttached();
+        __try {
+            const MethodInfo* mSpawned = methodGetIsSpawned;
+            if (!mSpawned && il2cpp_object_get_class) {
+                Il2CppClass* klass = (Il2CppClass*)il2cpp_object_get_class((Il2CppObject*)networkBehaviourObj);
+                if (klass) mSpawned = FindMethod(klass, "get_IsSpawned", 0);
             }
+
+            if (mSpawned && il2cpp_runtime_invoke) {
+                void* exc = nullptr;
+                Il2CppObject* res = il2cpp_runtime_invoke(mSpawned, networkBehaviourObj, nullptr, &exc);
+                if (!exc && res && IsValidMemPtr(res, 0x18)) {
+                    return *(bool*)((char*)res + 0x10);
+                }
+            }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return true;
         }
         return true;
     }
@@ -593,29 +642,44 @@ public:
     bool SetGameObjectActive(void* go, bool active) {
         if (!IsValidUnityObj(go) || !methodGameObjectSetActive || !il2cpp_runtime_invoke) return false;
         EnsureThreadAttached();
-        void* args[1] = { &active };
-        void* exc = nullptr;
-        il2cpp_runtime_invoke(methodGameObjectSetActive, go, args, &exc);
-        return exc == nullptr;
+        __try {
+            void* args[1] = { &active };
+            void* exc = nullptr;
+            il2cpp_runtime_invoke(methodGameObjectSetActive, go, args, &exc);
+            return exc == nullptr;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
+        }
     }
 
     bool SetTransformPosition(void* transform, Vector3 pos) {
         if (!IsValidUnityObj(transform) || !methodTransformSetPos || !il2cpp_runtime_invoke) return false;
         EnsureThreadAttached();
-        void* args[1] = { &pos };
-        void* exc = nullptr;
-        il2cpp_runtime_invoke(methodTransformSetPos, transform, args, &exc);
-        return exc == nullptr;
+        __try {
+            void* args[1] = { &pos };
+            void* exc = nullptr;
+            il2cpp_runtime_invoke(methodTransformSetPos, transform, args, &exc);
+            return exc == nullptr;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
+        }
     }
 
     bool GetTransformForward(void* transform, Vector3* outForward) {
         if (!IsValidUnityObj(transform) || !outForward || !methodTransformGetForward || !il2cpp_runtime_invoke) return false;
         EnsureThreadAttached();
-        void* exc = nullptr;
-        Il2CppObject* res = il2cpp_runtime_invoke(methodTransformGetForward, transform, nullptr, &exc);
-        if (!exc && res && IsValidMemPtr(res, 0x20)) {
-            *outForward = *(Vector3*)((char*)res + 0x10);
-            return true;
+        __try {
+            void* exc = nullptr;
+            Il2CppObject* res = il2cpp_runtime_invoke(methodTransformGetForward, transform, nullptr, &exc);
+            if (!exc && res && IsValidMemPtr(res, 0x20)) {
+                *outForward = *(Vector3*)((char*)res + 0x10);
+                return true;
+            }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
         }
         return false;
     }
@@ -623,102 +687,146 @@ public:
     bool TransformLookAt(void* transform, Vector3 target) {
         if (!IsValidUnityObj(transform) || !methodTransformLookAt || !il2cpp_runtime_invoke) return false;
         EnsureThreadAttached();
-        void* args[1] = { &target };
-        void* exc = nullptr;
-        il2cpp_runtime_invoke(methodTransformLookAt, transform, args, &exc);
-        return exc == nullptr;
+        __try {
+            void* args[1] = { &target };
+            void* exc = nullptr;
+            il2cpp_runtime_invoke(methodTransformLookAt, transform, args, &exc);
+            return exc == nullptr;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
+        }
     }
 
     bool SetRigidbodyLinearVelocity(void* rb, Vector3 vel) {
         if (!IsValidUnityObj(rb) || !methodRbSetLinearVelocity || !il2cpp_runtime_invoke) return false;
         EnsureThreadAttached();
-        void* args[1] = { &vel };
-        void* exc = nullptr;
-        il2cpp_runtime_invoke(methodRbSetLinearVelocity, rb, args, &exc);
-        return exc == nullptr;
+        __try {
+            void* args[1] = { &vel };
+            void* exc = nullptr;
+            il2cpp_runtime_invoke(methodRbSetLinearVelocity, rb, args, &exc);
+            return exc == nullptr;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
+        }
     }
 
     bool SetRigidbodyAngularVelocity(void* rb, Vector3 vel) {
         if (!IsValidUnityObj(rb) || !methodRbSetAngularVelocity || !il2cpp_runtime_invoke) return false;
         EnsureThreadAttached();
-        void* args[1] = { &vel };
-        void* exc = nullptr;
-        il2cpp_runtime_invoke(methodRbSetAngularVelocity, rb, args, &exc);
-        return exc == nullptr;
+        __try {
+            void* args[1] = { &vel };
+            void* exc = nullptr;
+            il2cpp_runtime_invoke(methodRbSetAngularVelocity, rb, args, &exc);
+            return exc == nullptr;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
+        }
     }
 
     bool MoveRigidbodyPosition(void* rb, Vector3 pos) {
         if (!IsValidUnityObj(rb) || !methodRbMovePosition || !il2cpp_runtime_invoke) return false;
         EnsureThreadAttached();
-        void* args[1] = { &pos };
-        void* exc = nullptr;
-        il2cpp_runtime_invoke(methodRbMovePosition, rb, args, &exc);
-        return exc == nullptr;
+        __try {
+            void* args[1] = { &pos };
+            void* exc = nullptr;
+            il2cpp_runtime_invoke(methodRbMovePosition, rb, args, &exc);
+            return exc == nullptr;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
+        }
     }
 
     void SetCursorState(bool unlocked) {
         EnsureThreadAttached();
-        if (unlocked) {
-            if (methodSetCursorLockState && il2cpp_runtime_invoke) {
-                int mode = 0; // CursorLockMode.None
-                void* args[1] = { &mode };
-                void* exc = nullptr;
-                il2cpp_runtime_invoke(methodSetCursorLockState, nullptr, args, &exc);
-            }
-            if (methodSetCursorVisible && il2cpp_runtime_invoke) {
-                bool vis = true;
-                void* args[1] = { &vis };
-                void* exc = nullptr;
-                il2cpp_runtime_invoke(methodSetCursorVisible, nullptr, args, &exc);
-            }
-        } else {
-            if (methodSetCursorLockState && il2cpp_runtime_invoke) {
-                int mode = 1; // CursorLockMode.Locked
-                void* args[1] = { &mode };
-                void* exc = nullptr;
-                il2cpp_runtime_invoke(methodSetCursorLockState, nullptr, args, &exc);
-            }
-            if (methodSetCursorVisible && il2cpp_runtime_invoke) {
-                bool vis = false;
-                void* args[1] = { &vis };
-                void* exc = nullptr;
-                il2cpp_runtime_invoke(methodSetCursorVisible, nullptr, args, &exc);
+        __try {
+            if (unlocked) {
+                if (methodSetCursorLockState && il2cpp_runtime_invoke) {
+                    int mode = 0; // CursorLockMode.None
+                    void* args[1] = { &mode };
+                    void* exc = nullptr;
+                    il2cpp_runtime_invoke(methodSetCursorLockState, nullptr, args, &exc);
+                }
+                if (methodSetCursorVisible && il2cpp_runtime_invoke) {
+                    bool vis = true;
+                    void* args[1] = { &vis };
+                    void* exc = nullptr;
+                    il2cpp_runtime_invoke(methodSetCursorVisible, nullptr, args, &exc);
+                }
+            } else {
+                if (methodSetCursorLockState && il2cpp_runtime_invoke) {
+                    int mode = 1; // CursorLockMode.Locked
+                    void* args[1] = { &mode };
+                    void* exc = nullptr;
+                    il2cpp_runtime_invoke(methodSetCursorLockState, nullptr, args, &exc);
+                }
+                if (methodSetCursorVisible && il2cpp_runtime_invoke) {
+                    bool vis = false;
+                    void* args[1] = { &vis };
+                    void* exc = nullptr;
+                    il2cpp_runtime_invoke(methodSetCursorVisible, nullptr, args, &exc);
+                }
             }
         }
+        __except (EXCEPTION_EXECUTE_HANDLER) {}
     }
 
     void* GetBootstrapInstance() {
         EnsureThreadAttached();
-        if (methodBootstrapGetInstance && il2cpp_runtime_invoke) {
-            void* exc = nullptr;
-            Il2CppObject* res = il2cpp_runtime_invoke(methodBootstrapGetInstance, nullptr, nullptr, &exc);
-            if (!exc && res && IsValidUnityObj(res)) return (void*)res;
+        __try {
+            if (methodBootstrapGetInstance && il2cpp_runtime_invoke) {
+                void* exc = nullptr;
+                Il2CppObject* res = il2cpp_runtime_invoke(methodBootstrapGetInstance, nullptr, nullptr, &exc);
+                if (!exc && res && IsValidUnityObj(res)) return (void*)res;
+            }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return nullptr;
         }
         return nullptr;
     }
 
     uint64_t GetCurrentLobbyID() {
-        void* bs = GetBootstrapInstance();
-        if (!bs || !IsValidUnityObj(bs)) return 0;
-        return *(uint64_t*)((char*)bs + 0x38);
+        __try {
+            void* bs = GetBootstrapInstance();
+            if (!bs || !IsValidUnityObj(bs)) return 0;
+            return *(uint64_t*)((char*)bs + 0x38);
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return 0;
+        }
     }
 
     bool HostLobby(bool privateLobby) {
-        void* bs = GetBootstrapInstance();
-        if (!bs || !IsValidUnityObj(bs) || !methodBootstrapHostLobby || !il2cpp_runtime_invoke) return false;
-        EnsureThreadAttached();
-        void* args[1] = { &privateLobby };
-        void* exc = nullptr;
-        il2cpp_runtime_invoke(methodBootstrapHostLobby, bs, args, &exc);
-        return exc == nullptr;
+        __try {
+            void* bs = GetBootstrapInstance();
+            if (!bs || !IsValidUnityObj(bs) || !methodBootstrapHostLobby || !il2cpp_runtime_invoke) return false;
+            EnsureThreadAttached();
+            void* args[1] = { &privateLobby };
+            void* exc = nullptr;
+            il2cpp_runtime_invoke(methodBootstrapHostLobby, bs, args, &exc);
+            return exc == nullptr;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
+        }
     }
 
     bool LeaveLobby() {
-        void* bs = GetBootstrapInstance();
-        if (!bs || !IsValidUnityObj(bs) || !methodBootstrapLeaveLobby || !il2cpp_runtime_invoke) return false;
-        EnsureThreadAttached();
-        void* exc = nullptr;
-        il2cpp_runtime_invoke(methodBootstrapLeaveLobby, bs, nullptr, &exc);
-        return exc == nullptr;
+        __try {
+            void* bs = GetBootstrapInstance();
+            if (!bs || !IsValidUnityObj(bs) || !methodBootstrapLeaveLobby || !il2cpp_runtime_invoke) return false;
+            EnsureThreadAttached();
+            void* exc = nullptr;
+            il2cpp_runtime_invoke(methodBootstrapLeaveLobby, bs, nullptr, &exc);
+            return exc == nullptr;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
+        }
     }
 };
+
