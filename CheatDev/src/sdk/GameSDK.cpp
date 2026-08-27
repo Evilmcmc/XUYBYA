@@ -377,19 +377,16 @@ void SDK::ResolveBoneSafe(void* mainCam, void* rbPtr, BonePoint& outBone) {
 
     __try {
         if (g_Il2Cpp.GetRigidbodyPosition(rbPtr, &outBone.world)) {
-            if (fabsf(outBone.world.x) < 0.0001f && fabsf(outBone.world.y) < 0.0001f && fabsf(outBone.world.z) < 0.0001f)
-                return;
-
             if (g_Il2Cpp.WorldToScreen(mainCam, outBone.world, &outBone.screen)) {
-                if (outBone.screen.z > 0.2f && outBone.screen.z < 800.0f &&
+                if (outBone.screen.z > 0.1f && outBone.screen.z < 1500.0f &&
                     !std::isnan(outBone.screen.z) && !std::isinf(outBone.screen.z) &&
                     !std::isnan(outBone.screen.x) && !std::isnan(outBone.screen.y)) {
 
                     ImGuiIO& io = ImGui::GetIO();
                     float sw = io.DisplaySize.x;
                     float sh = io.DisplaySize.y;
-                    if (outBone.screen.x >= -300.0f && outBone.screen.x <= sw + 300.0f &&
-                        outBone.screen.y >= -300.0f && outBone.screen.y <= sh + 300.0f) {
+                    if (outBone.screen.x >= -500.0f && outBone.screen.x <= sw + 500.0f &&
+                        outBone.screen.y >= -500.0f && outBone.screen.y <= sh + 500.0f) {
                         outBone.valid = true;
                     }
                 }
@@ -452,12 +449,12 @@ void SDK::UpdateESPData() {
                     if (g_Il2Cpp.GetTransformPosition(pTransform, &rootWorldPos)) {
                         data.root.world = rootWorldPos;
                         if (g_Il2Cpp.WorldToScreen(activeCam, rootWorldPos, &data.root.screen)) {
-                            if (data.root.screen.z > 0.2f) data.root.valid = true;
+                            if (data.root.screen.z > 0.1f && data.root.screen.z < 1500.0f) data.root.valid = true;
                         }
 
                         data.chest.world = rootWorldPos + Vector3(0.0f, 0.85f, 0.0f);
                         if (g_Il2Cpp.WorldToScreen(activeCam, data.chest.world, &data.chest.screen)) {
-                            if (data.chest.screen.z > 0.2f) data.chest.valid = true;
+                            if (data.chest.screen.z > 0.1f && data.chest.screen.z < 1500.0f) data.chest.valid = true;
                         }
                     }
                 }
@@ -467,7 +464,7 @@ void SDK::UpdateESPData() {
                 Vector3 headWorld = data.chest.world + Vector3(0.0f, 0.45f, 0.0f);
                 data.head.world   = headWorld;
                 if (g_Il2Cpp.WorldToScreen(activeCam, headWorld, &data.head.screen)) {
-                    if (data.head.screen.z > 0.2f && data.head.screen.z < 800.0f &&
+                    if (data.head.screen.z > 0.1f && data.head.screen.z < 1500.0f &&
                         !std::isnan(data.head.screen.x) && !std::isnan(data.head.screen.y)) {
                         data.head.valid = true;
                     }
@@ -512,7 +509,7 @@ void SDK::UpdateESPData() {
                 data.boxMinY = minY - padY;
                 data.boxMaxY = maxY + padY;
                 data.hasBox  = true;
-            } else if (validCount >= 1 && data.distance > 0.2f) {
+            } else if (data.distance > 0.1f && (data.root.valid || data.chest.valid || data.head.valid)) {
                 float refX = data.root.valid ? data.root.screen.x : (data.chest.valid ? data.chest.screen.x : data.head.screen.x);
                 float refY = data.root.valid ? data.root.screen.y : (data.chest.valid ? data.chest.screen.y - 20.0f : data.head.screen.y - 45.0f);
                 float estH = (io.DisplaySize.y * 1.5f) / data.distance;
@@ -544,3 +541,4 @@ void SDK::UpdateESPData() {
         g_ESPData.clear();
     }
 }
+

@@ -66,14 +66,16 @@ inline bool IsValidUnityObj(void* obj) {
     __try {
         void* klass = *(void**)obj;
         if (!IsValidMemPtr(klass, 0x20)) return false;
-        void* cached = *(void**)((char*)obj + 0x10);
-        if (!cached || !IsValidMemPtr(cached, 8)) return false;
+        // In Unity, m_CachedPtr at offset 0x10 is non-zero if the native C++ object is alive
+        intptr_t cachedPtr = *(intptr_t*)((char*)obj + 0x10);
+        if (cachedPtr == 0) return false;
         return true;
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
         return false;
     }
 }
+
 
 inline std::string Il2CppStringToStdString(void* il2cppStr) {
     if (!il2cppStr || !IsValidMemPtr(il2cppStr, 0x14)) return "";
@@ -385,6 +387,20 @@ public:
                 }
             }
         }
+
+        // 4. Fallback: FindObjectsOfType(classCamera)
+        if (classCamera) {
+            Il2CppArray* cams = FindObjectsOfType(classCamera);
+            if (cams && IsValidMemPtr(cams, 0x28)) {
+                uintptr_t cnt = *(uintptr_t*)((char*)cams + 0x18);
+                if (cnt > 0 && cnt <= 32) {
+                    void** items = (void**)((char*)cams + 0x20);
+                    for (uintptr_t i = 0; i < cnt; i++) {
+                        if (items[i] && IsValidUnityObj(items[i])) return items[i];
+                    }
+                }
+            }
+        }
         return nullptr;
     }
 
@@ -447,7 +463,7 @@ public:
         if (methodTransformGetPos && il2cpp_runtime_invoke) {
             void* exc = nullptr;
             Il2CppObject* res = il2cpp_runtime_invoke(methodTransformGetPos, transform, nullptr, &exc);
-            if (!exc && res && IsValidMemPtr(res, 0x20)) {
+            if (!exc && res && IsValidMemPtr(res, 0x1C)) {
                 *outPos = *(Vector3*)((char*)res + 0x10);
                 return true;
             }
@@ -456,24 +472,28 @@ public:
     }
 
     bool GetRigidbodyPosition(void* rb, Vector3* outPos) {
-        if (!IsValidUnityObj(rb) || !outPos) return false;
+        if (!IsValidMemPtr(rb, 0x18) || !outPos) return false;
         EnsureThreadAttached();
 
         // 1. Try direct Rigidbody.get_position
         if (methodRbGetPos && il2cpp_runtime_invoke) {
             void* exc = nullptr;
             Il2CppObject* res = il2cpp_runtime_invoke(methodRbGetPos, rb, nullptr, &exc);
-            if (!exc && res && IsValidMemPtr(res, 0x20)) {
+            if (!exc && res && IsValidMemPtr(res, 0x1C)) {
                 *outPos = *(Vector3*)((char*)res + 0x10);
                 return true;
             }
         }
 
-        // 2. Fallback to Component.get_transform -> Transform.get_position
+        // 2. Try Component.get_transform -> Transform.get_position
         void* tr = GetComponentTransform(rb);
         if (tr && IsValidUnityObj(tr)) {
-            return GetTransformPosition(tr, outPos);
+            if (GetTransformPosition(tr, outPos)) return true;
         }
+
+        // 3. Try direct Transform.get_position
+        if (GetTransformPosition(rb, outPos)) return true;
+
         return false;
     }
 
@@ -484,13 +504,14 @@ public:
             void* args[1] = { &worldPos };
             void* exc = nullptr;
             Il2CppObject* res = il2cpp_runtime_invoke(methodWorldToScreen, camera, args, &exc);
-            if (!exc && res && IsValidMemPtr(res, 0x20)) {
+            if (!exc && res && IsValidMemPtr(res, 0x1C)) {
                 *outScreen = *(Vector3*)((char*)res + 0x10);
                 return true;
             }
         }
         return false;
     }
+
 
     bool IsLocalPlayer(void* networkBehaviourObj) {
         if (!IsValidUnityObj(networkBehaviourObj)) return false;
