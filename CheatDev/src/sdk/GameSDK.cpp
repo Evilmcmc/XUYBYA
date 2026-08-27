@@ -128,35 +128,44 @@ void SDK::ResetCache() {
 }
 
 void* SDK::GetCurrentCamera() {
-    ULONGLONG now = GetTickCount64();
-    if (g_CachedCamera && IsValidUnityObj(g_CachedCamera) && (now - g_LastCameraCheckTime < 100)) {
-        return g_CachedCamera;
-    }
-    g_LastCameraCheckTime = now;
-
     void* cam = nullptr;
 
-    // 1. Direct fast retrieval from cached Local PlayerMovement -> _cam (0x220) -> cam (0x140)
+    // 1. Primary: Unity's Camera.main (always renders the main screen view)
+    cam = g_Il2Cpp.GetMainCamera();
+    if (cam && IsValidUnityObj(cam)) {
+        g_CachedCamera = cam;
+        return g_CachedCamera;
+    }
+
+    // 2. Secondary: SharedReferences.playerCamera (0xF8) from Local Player
+    if (g_HasLocalPlayer && g_LocalPlayerInfo.playerObj && IsValidUnityObj(g_LocalPlayerInfo.playerObj)) {
+        if (SharedRefClass) {
+            void* sRef = g_Il2Cpp.GetComponent(g_LocalPlayerInfo.playerObj, SharedRefClass);
+            if (sRef && IsValidUnityObj(sRef)) {
+                void* pCam = *(void**)((char*)sRef + 0xF8);
+                if (pCam && IsValidUnityObj(pCam)) {
+                    g_CachedCamera = pCam;
+                    return g_CachedCamera;
+                }
+            }
+        }
+    }
+
+    // 3. Fallback: PlayerMovement._cam->cam
     if (g_HasLocalPlayer && g_LocalPlayerInfo.playerMovement && IsValidUnityObj(g_LocalPlayerInfo.playerMovement)) {
         void* rCamCtrl = *(void**)((char*)g_LocalPlayerInfo.playerMovement + 0x220);
         if (rCamCtrl && IsValidUnityObj(rCamCtrl)) {
             void* rCam = *(void**)((char*)rCamCtrl + 0x140);
             if (rCam && IsValidUnityObj(rCam)) {
-                cam = rCam;
+                g_CachedCamera = rCam;
+                return g_CachedCamera;
             }
         }
     }
 
-    // 2. Fallback to Camera.main
-    if (!cam || !IsValidUnityObj(cam)) {
-        cam = g_Il2Cpp.GetMainCamera();
-    }
-
-    if (cam && IsValidUnityObj(cam)) {
-        g_CachedCamera = cam;
-    }
     return g_CachedCamera;
 }
+
 
 void SDK::OptimizePerformance() {
     static bool s_Optimized = false;
