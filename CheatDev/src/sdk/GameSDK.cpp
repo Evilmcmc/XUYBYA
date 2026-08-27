@@ -212,12 +212,23 @@ void SDK::ScanEntities() {
                 info.healthComp = g_Il2Cpp.GetComponent(p, HealthClass);
                 if (info.healthComp && IsValidUnityObj(info.healthComp)) {
                     info.maxHp = *(int*)((char*)info.healthComp + 0xF8);
+                    if (info.maxHp <= 0 || info.maxHp > 100000) info.maxHp = 100;
+
                     void* curHpObj = *(void**)((char*)info.healthComp + 0x100);
                     if (curHpObj && IsValidMemPtr(curHpObj, 0x90)) {
                         info.hp = *(int*)((char*)curHpObj + 0x84);
                     } else {
                         info.hp = info.maxHp;
                     }
+
+                    if (GetCurrentHealth) {
+                        void* exc = nullptr;
+                        Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(GetCurrentHealth, info.healthComp, nullptr, &exc);
+                        if (!exc && res && IsValidMemPtr(res, 0x18)) {
+                            info.hp = *(int*)((char*)res + 0x10);
+                        }
+                    }
+
                     if (IsDeadMethod) {
                         void* exc = nullptr;
                         Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(IsDeadMethod, info.healthComp, nullptr, &exc);
@@ -225,6 +236,10 @@ void SDK::ScanEntities() {
                             info.isDead = *(bool*)((char*)res + 0x10);
                         }
                     }
+                } else {
+                    info.hp = 100;
+                    info.maxHp = 100;
+                    info.isDead = false;
                 }
             }
 
@@ -260,6 +275,30 @@ void SDK::ScanEntities() {
             info.rShoulderRb = *(void**)((char*)p + 0x168);
             info.chestRb     = *(void**)((char*)p + 0x170);
 
+            // Fallback: If individual bone pointers are null, check rigidBodies array at 0xF8
+            void* rbArr = *(void**)((char*)p + 0xF8);
+            if (rbArr && IsValidMemPtr(rbArr, 0x30)) {
+                uintptr_t rbCount = *(uintptr_t*)((char*)rbArr + 0x18);
+                if (rbCount >= 15) {
+                    void** rbItems = (void**)((char*)rbArr + 0x20);
+                    if (!info.spineRb)     info.spineRb     = rbItems[0];
+                    if (!info.rootRb)      info.rootRb      = rbItems[1];
+                    if (!info.lFootRb)     info.lFootRb     = rbItems[2];
+                    if (!info.rFootRb)     info.rFootRb     = rbItems[3];
+                    if (!info.lKneeRb)     info.lKneeRb     = rbItems[4];
+                    if (!info.rKneeRb)     info.rKneeRb     = rbItems[5];
+                    if (!info.lHandRb)     info.lHandRb     = rbItems[6];
+                    if (!info.rHandRb)     info.rHandRb     = rbItems[7];
+                    if (!info.lElbowRb)    info.lElbowRb    = rbItems[8];
+                    if (!info.rElbowRb)    info.rElbowRb    = rbItems[9];
+                    if (!info.lUpperArmRb) info.lUpperArmRb = rbItems[10];
+                    if (!info.rUpperArmRb) info.rUpperArmRb = rbItems[11];
+                    if (!info.lShoulderRb) info.lShoulderRb = rbItems[12];
+                    if (!info.rShoulderRb) info.rShoulderRb = rbItems[13];
+                    if (!info.chestRb)     info.chestRb     = rbItems[14];
+                }
+            }
+
             if (info.isLocal) {
                 foundLocal = true;
                 localInfo = info;
@@ -274,7 +313,6 @@ void SDK::ScanEntities() {
                 if (pl.isLocal) {
                     pl.isEnemy = false;
                 } else {
-                    // If both players have false/default awayTeam, or different teams -> they are targets
                     pl.isEnemy = true;
                 }
             }
@@ -292,23 +330,23 @@ void SDK::ScanEntities() {
 
 void SDK::ResolveBoneSafe(void* mainCam, void* rbPtr, BonePoint& outBone) {
     outBone.valid = false;
-    if (!rbPtr || !mainCam || !IsValidUnityObj(rbPtr) || !IsValidUnityObj(mainCam)) return;
+    if (!rbPtr || !mainCam || !IsValidUnityObj(mainCam)) return;
 
     __try {
         if (g_Il2Cpp.GetRigidbodyPosition(rbPtr, &outBone.world)) {
-            if (fabsf(outBone.world.x) < 0.001f && fabsf(outBone.world.y) < 0.001f && fabsf(outBone.world.z) < 0.001f)
+            if (fabsf(outBone.world.x) < 0.0001f && fabsf(outBone.world.y) < 0.0001f && fabsf(outBone.world.z) < 0.0001f)
                 return;
 
             if (g_Il2Cpp.WorldToScreen(mainCam, outBone.world, &outBone.screen)) {
-                if (outBone.screen.z > 0.3f && outBone.screen.z < 500.0f &&
+                if (outBone.screen.z > 0.2f && outBone.screen.z < 800.0f &&
                     !std::isnan(outBone.screen.z) && !std::isinf(outBone.screen.z) &&
                     !std::isnan(outBone.screen.x) && !std::isnan(outBone.screen.y)) {
 
                     ImGuiIO& io = ImGui::GetIO();
                     float sw = io.DisplaySize.x;
                     float sh = io.DisplaySize.y;
-                    if (outBone.screen.x >= -150.0f && outBone.screen.x <= sw + 150.0f &&
-                        outBone.screen.y >= -150.0f && outBone.screen.y <= sh + 150.0f) {
+                    if (outBone.screen.x >= -300.0f && outBone.screen.x <= sw + 300.0f &&
+                        outBone.screen.y >= -300.0f && outBone.screen.y <= sh + 300.0f) {
                         outBone.valid = true;
                     }
                 }
@@ -328,18 +366,19 @@ void SDK::UpdateESPData() {
     }
 
     __try {
+        ImGuiIO& io = ImGui::GetIO();
         std::vector<PlayerESPData> newData;
         newData.reserve(g_CachedPlayers.size());
 
         for (const auto& pl : g_CachedPlayers) {
             if (bIgnoreLocal && pl.isLocal) continue;
-            if (bIgnoreDead && (pl.isDead || pl.hp <= 0)) continue;
+            if (bIgnoreDead && pl.isDead && pl.hp <= 0) continue;
             if (bIgnoreTeammates && !pl.isEnemy) continue;
             if (!IsValidUnityObj(pl.playerObj)) continue;
 
             PlayerESPData data{};
-            data.hp       = pl.hp;
-            data.maxHp    = pl.maxHp;
+            data.hp       = (pl.hp > 0) ? pl.hp : 100;
+            data.maxHp    = (pl.maxHp > 0) ? pl.maxHp : 100;
             data.isDead   = pl.isDead;
             data.awayTeam = pl.awayTeam;
             data.isEnemy  = pl.isEnemy;
@@ -361,11 +400,30 @@ void SDK::UpdateESPData() {
             ResolveBoneSafe(activeCam, pl.rKneeRb,     data.rKnee);
             ResolveBoneSafe(activeCam, pl.rFootRb,     data.rFoot);
 
+            // Fallback: If no bones projected, project from Player component transform directly
+            if (!data.chest.valid && !data.root.valid) {
+                void* pTransform = g_Il2Cpp.GetComponentTransform(pl.playerObj);
+                if (pTransform && IsValidUnityObj(pTransform)) {
+                    Vector3 rootWorldPos{};
+                    if (g_Il2Cpp.GetTransformPosition(pTransform, &rootWorldPos)) {
+                        data.root.world = rootWorldPos;
+                        if (g_Il2Cpp.WorldToScreen(activeCam, rootWorldPos, &data.root.screen)) {
+                            if (data.root.screen.z > 0.2f) data.root.valid = true;
+                        }
+
+                        data.chest.world = rootWorldPos + Vector3(0.0f, 0.85f, 0.0f);
+                        if (g_Il2Cpp.WorldToScreen(activeCam, data.chest.world, &data.chest.screen)) {
+                            if (data.chest.screen.z > 0.2f) data.chest.valid = true;
+                        }
+                    }
+                }
+            }
+
             if (data.chest.valid) {
-                Vector3 headWorld = data.chest.world + Vector3(0.0f, 0.40f, 0.0f);
+                Vector3 headWorld = data.chest.world + Vector3(0.0f, 0.45f, 0.0f);
                 data.head.world   = headWorld;
                 if (g_Il2Cpp.WorldToScreen(activeCam, headWorld, &data.head.screen)) {
-                    if (data.head.screen.z > 0.3f && data.head.screen.z < 500.0f &&
+                    if (data.head.screen.z > 0.2f && data.head.screen.z < 800.0f &&
                         !std::isnan(data.head.screen.x) && !std::isnan(data.head.screen.y)) {
                         data.head.valid = true;
                     }
@@ -374,6 +432,7 @@ void SDK::UpdateESPData() {
 
             if (data.root.valid) data.distance = data.root.screen.z;
             else if (data.chest.valid) data.distance = data.chest.screen.z;
+            else if (data.head.valid) data.distance = data.head.screen.z;
 
             if (data.distance > fMaxDistance || data.distance <= 0.0f) continue;
 
@@ -399,15 +458,28 @@ void SDK::UpdateESPData() {
             }
 
             if (validCount >= 2) {
-                float padX = (maxX - minX) * 0.20f;
-                if (padX < 6.0f) padX = 6.0f;
-                float padY = (maxY - minY) * 0.12f;
-                if (padY < 6.0f) padY = 6.0f;
+                float padX = (maxX - minX) * 0.22f;
+                if (padX < 8.0f) padX = 8.0f;
+                float padY = (maxY - minY) * 0.15f;
+                if (padY < 8.0f) padY = 8.0f;
 
                 data.boxMinX = minX - padX;
                 data.boxMaxX = maxX + padX;
                 data.boxMinY = minY - padY;
                 data.boxMaxY = maxY + padY;
+                data.hasBox  = true;
+            } else if (validCount >= 1 && data.distance > 0.2f) {
+                float refX = data.root.valid ? data.root.screen.x : (data.chest.valid ? data.chest.screen.x : data.head.screen.x);
+                float refY = data.root.valid ? data.root.screen.y : (data.chest.valid ? data.chest.screen.y - 20.0f : data.head.screen.y - 45.0f);
+                float estH = (io.DisplaySize.y * 1.5f) / data.distance;
+                if (estH < 15.0f) estH = 15.0f;
+                if (estH > io.DisplaySize.y) estH = io.DisplaySize.y;
+                float estW = estH * 0.50f;
+
+                data.boxMinX = refX - estW * 0.5f;
+                data.boxMaxX = refX + estW * 0.5f;
+                data.boxMinY = refY;
+                data.boxMaxY = refY + estH;
                 data.hasBox  = true;
             }
 

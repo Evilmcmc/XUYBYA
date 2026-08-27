@@ -129,6 +129,7 @@ public:
     Il2CppClass* classBootstrapManager = nullptr;
 
     MethodInfo* methodFindObjectsOfType       = nullptr;
+    MethodInfo* methodFindObjectsOfTypeAll    = nullptr;
     MethodInfo* methodCameraGetMain           = nullptr;
     MethodInfo* methodCameraGetCurrent        = nullptr;
     MethodInfo* methodCameraGetAll            = nullptr;
@@ -144,6 +145,7 @@ public:
     MethodInfo* methodGameObjectSetActive     = nullptr;
     MethodInfo* methodGetIsOwner              = nullptr;
     MethodInfo* methodGetIsSpawned            = nullptr;
+    MethodInfo* methodRbGetPos                = nullptr;
     MethodInfo* methodRbSetLinearVelocity     = nullptr;
     MethodInfo* methodRbSetAngularVelocity    = nullptr;
     MethodInfo* methodRbMovePosition          = nullptr;
@@ -245,7 +247,8 @@ public:
             classComponent  = il2cpp_class_from_name(core, "UnityEngine", "Component");
 
             if (classObject) {
-                methodFindObjectsOfType = FindMethod(classObject, "FindObjectsOfType", 1);
+                methodFindObjectsOfType    = FindMethod(classObject, "FindObjectsOfType", 1);
+                methodFindObjectsOfTypeAll = FindMethod(classObject, "FindObjectsOfTypeAll", 1);
             }
             if (classGameObject) {
                 methodGameObjectGetActiveInH = FindMethod(classGameObject, "get_activeInHierarchy", 0);
@@ -279,6 +282,7 @@ public:
         if (phys) {
             classRigidbody = il2cpp_class_from_name(phys, "UnityEngine", "Rigidbody");
             if (classRigidbody) {
+                methodRbGetPos             = FindMethod(classRigidbody, "get_position", 0);
                 methodRbSetLinearVelocity  = FindMethod(classRigidbody, "set_linearVelocity", 1);
                 methodRbSetAngularVelocity = FindMethod(classRigidbody, "set_angularVelocity", 1);
                 methodRbMovePosition       = FindMethod(classRigidbody, "MovePosition", 1);
@@ -308,7 +312,7 @@ public:
 
     Il2CppArray* FindObjectsOfType(Il2CppClass* targetClass) {
         EnsureThreadAttached();
-        if (!targetClass || !methodFindObjectsOfType || !il2cpp_class_get_type || !il2cpp_type_get_object || !il2cpp_runtime_invoke)
+        if (!targetClass || !il2cpp_class_get_type || !il2cpp_type_get_object || !il2cpp_runtime_invoke)
             return nullptr;
 
         void* typeObj = il2cpp_type_get_object(il2cpp_class_get_type(targetClass));
@@ -316,7 +320,16 @@ public:
 
         void* args[1] = { typeObj };
         void* exc = nullptr;
-        Il2CppObject* res = il2cpp_runtime_invoke(methodFindObjectsOfType, nullptr, args, &exc);
+        Il2CppObject* res = nullptr;
+
+        if (methodFindObjectsOfType) {
+            res = il2cpp_runtime_invoke(methodFindObjectsOfType, nullptr, args, &exc);
+        }
+        if ((!res || exc) && methodFindObjectsOfTypeAll) {
+            exc = nullptr;
+            res = il2cpp_runtime_invoke(methodFindObjectsOfTypeAll, nullptr, args, &exc);
+        }
+
         if (exc || !res || !IsValidMemPtr(res, 0x20)) return nullptr;
         return (Il2CppArray*)res;
     }
@@ -423,6 +436,19 @@ public:
 
     bool GetRigidbodyPosition(void* rb, Vector3* outPos) {
         if (!IsValidUnityObj(rb) || !outPos) return false;
+        EnsureThreadAttached();
+
+        // 1. Try direct Rigidbody.get_position
+        if (methodRbGetPos && il2cpp_runtime_invoke) {
+            void* exc = nullptr;
+            Il2CppObject* res = il2cpp_runtime_invoke(methodRbGetPos, rb, nullptr, &exc);
+            if (!exc && res && IsValidMemPtr(res, 0x20)) {
+                *outPos = *(Vector3*)((char*)res + 0x10);
+                return true;
+            }
+        }
+
+        // 2. Fallback to Component.get_transform -> Transform.get_position
         void* tr = GetComponentTransform(rb);
         if (tr && IsValidUnityObj(tr)) {
             return GetTransformPosition(tr, outPos);
