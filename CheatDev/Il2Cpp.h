@@ -35,7 +35,7 @@ inline bool IsValidMemPtr(const void* ptr, size_t size = 8) {
     uintptr_t u = (uintptr_t)ptr;
     if (u < 0x10000 || u >= 0x7FFFFFFFFFFF) return false;
 
-    try {
+    __try {
         volatile char c1 = *(const volatile char*)ptr;
         if (size > 1) {
             volatile char c2 = *((const volatile char*)ptr + size - 1);
@@ -44,26 +44,26 @@ inline bool IsValidMemPtr(const void* ptr, size_t size = 8) {
         (void)c1;
         return true;
     }
-    catch (...) {
+    __except (EXCEPTION_EXECUTE_HANDLER) {
         return false;
     }
 }
 
 inline bool IsValidIl2CppObj(void* obj) {
     if (!IsValidMemPtr(obj, 0x18)) return false;
-    try {
+    __try {
         void* klass = *(void**)obj;
         if (!IsValidMemPtr(klass, 0x20)) return false;
         return true;
     }
-    catch (...) {
+    __except (EXCEPTION_EXECUTE_HANDLER) {
         return false;
     }
 }
 
 inline bool IsValidUnityObj(void* obj) {
     if (!IsValidMemPtr(obj, 0x18)) return false;
-    try {
+    __try {
         void* klass = *(void**)obj;
         if (!IsValidMemPtr(klass, 0x20)) return false;
         // In Unity, m_CachedPtr at offset 0x10 is non-zero if the native C++ object is alive
@@ -71,15 +71,14 @@ inline bool IsValidUnityObj(void* obj) {
         if (cachedPtr == 0) return false;
         return true;
     }
-    catch (...) {
+    __except (EXCEPTION_EXECUTE_HANDLER) {
         return false;
     }
 }
 
-
 inline std::string Il2CppStringToStdString(void* il2cppStr) {
     if (!il2cppStr || !IsValidMemPtr(il2cppStr, 0x14)) return "";
-    try {
+    __try {
         int len = *(int*)((char*)il2cppStr + 0x10);
         if (len <= 0 || len > 128) return "";
         wchar_t* chars = (wchar_t*)((char*)il2cppStr + 0x14);
@@ -93,10 +92,11 @@ inline std::string Il2CppStringToStdString(void* il2cppStr) {
         }
         return result;
     }
-    catch (...) {
+    __except (EXCEPTION_EXECUTE_HANDLER) {
         return "";
     }
 }
+
 
 // --- IL2CPP Function Typedefs ---
 typedef Il2CppDomain*  (*il2cpp_domain_get_t)();
@@ -251,14 +251,22 @@ public:
 
     MethodInfo* FindMethod(Il2CppClass* klass, const char* methodName, int argsCount) {
         if (!klass || !il2cpp_class_get_method_from_name) return nullptr;
-        Il2CppClass* cur = klass;
-        while (cur) {
-            MethodInfo* m = il2cpp_class_get_method_from_name(cur, methodName, argsCount);
-            if (m) return m;
-            cur = *(Il2CppClass**)((char*)cur + 0x18); // parent/base class in il2cpp
+        __try {
+            Il2CppClass* cur = klass;
+            int depth = 0;
+            while (cur && depth++ < 10) {
+                MethodInfo* m = il2cpp_class_get_method_from_name(cur, methodName, argsCount);
+                if (m) return m;
+                if (!IsValidMemPtr(cur, 0x20)) break;
+                cur = *(Il2CppClass**)((char*)cur + 0x18); // parent/base class in il2cpp
+            }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return nullptr;
         }
         return nullptr;
     }
+
 
     void InitUnityClasses() {
         Il2CppImage* core = GetImage("UnityEngine.CoreModule");
