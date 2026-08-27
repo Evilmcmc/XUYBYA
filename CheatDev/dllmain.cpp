@@ -252,14 +252,24 @@ static DWORD WINAPI InitThread(LPVOID lpParam) {
     while (!GetModuleHandleA("dxgi.dll") || !GetModuleHandleA("d3d11.dll")) Sleep(200);
     while (!GetModuleHandleA("GameAssembly.dll")) Sleep(300);
 
-    Sleep(500);
+    Sleep(1200);
 
-    if (SDK::Initialize()) {
-        CheatLog("[+] SDK and IL2CPP Initialized.");
+    __try {
+        if (SDK::Initialize()) {
+            CheatLog("[+] SDK and IL2CPP Initialized.");
+        }
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER) {
+        CheatLog("[-] SDK::Initialize caught exception 0x%08X", GetExceptionCode());
     }
 
-    if (Hooks::Initialize()) {
-        CheatLog("[+] Hooks Installed. Ready for battle!");
+    __try {
+        if (Hooks::Initialize()) {
+            CheatLog("[+] Hooks Installed. Ready for battle!");
+        }
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER) {
+        CheatLog("[-] Hooks::Initialize caught exception 0x%08X", GetExceptionCode());
     }
 
     Config::Load();
