@@ -163,7 +163,7 @@ bool Combat::GetSilentAimTargetPosition(Vector3* outTargetPos) {
 void Combat::DoMassKill() {
     if (!bEnableMassKill || !g_HasLocalPlayer) return;
 
-    try {
+    __try {
         ULONGLONG now = GetTickCount64();
         if (now - g_LastMassKillTime < (ULONGLONG)fMassKillInterval) return;
         g_LastMassKillTime = now;
@@ -219,7 +219,7 @@ void Combat::DoMassKill() {
                 Il2CppObject* packedPos = g_Il2Cpp.il2cpp_runtime_invoke(SDK::PackVector3Method, nullptr, posArgs, &exc1);
                 Il2CppObject* packedFwd = g_Il2Cpp.il2cpp_runtime_invoke(SDK::PackDirectionMethod, nullptr, fwdArgs, &exc2);
 
-                if (packedPos && packedFwd && !exc1 && !exc2) {
+                if (packedPos && packedFwd) {
                     uint32_t tick = 0;
                     void* shootArgs[3] = { packedPos, packedFwd, &tick };
                     void* exc3 = nullptr;
@@ -227,15 +227,15 @@ void Combat::DoMassKill() {
                 }
             }
 
-            // Vector 2: Instant High-Damage Packet Kill (StartSharedEffects / Observers Broadcast)
+            // Vector 2: Hit Effect Animation
             if (SDK::StartSharedEffectsMethod && SDK::PackVector3Method) {
-                void* posArgs[1] = { &targetHeadPos };
-                void* excPos = nullptr;
-                Il2CppObject* packedHit = g_Il2Cpp.il2cpp_runtime_invoke(SDK::PackVector3Method, nullptr, posArgs, &excPos);
-                if (packedHit && !excPos) {
+                void* vArgs[1] = { &targetHeadPos };
+                void* excV = nullptr;
+                Il2CppObject* packedHit = g_Il2Cpp.il2cpp_runtime_invoke(SDK::PackVector3Method, nullptr, vArgs, &excV);
+                if (packedHit) {
                     int hitPlayerId = 0;
                     bool didHit = true;
-                    short lethalDamage = 32767;
+                    int lethalDamage = 99999;
                     bool applyDmg = true;
                     void* effArgs[5] = { packedHit, &hitPlayerId, &didHit, &lethalDamage, &applyDmg };
                     void* excEff = nullptr;
@@ -244,7 +244,7 @@ void Combat::DoMassKill() {
             }
 
             // Vector 3: Direct Health Packet Depletion
-            if (pl.healthComp && SDK::CMDChangeCurrentHealth) {
+            if (pl.healthComp && SDK::CMDChangeCurrentHealth && IsValidUnityObj(pl.healthComp)) {
                 int deadHealth = 0;
                 void* hArgs[1] = { &deadHealth };
                 void* excH = nullptr;
@@ -263,14 +263,14 @@ void Combat::DoMassKill() {
             CheatLog("[PACKET-KILL] Annihilated %d player(s) via server packets", killedCount);
         }
     }
-    catch (...) {}
+    __except (EXCEPTION_EXECUTE_HANDLER) {}
 }
 
 void Combat::DoTeleportKill(ImGuiIO& /*io*/) {
     if (!bEnableTeleportKill || !g_HasLocalPlayer) return;
     if (bTeleportHoldKey && !IsKeyActive(iTeleportKey)) return;
 
-    try {
+    __try {
         std::vector<const CachedPlayerInfo*> validEnemies;
         for (const auto& pl : g_CachedPlayers) {
             if (pl.isEnemy && !pl.isDead && pl.hp > 0 && IsValidUnityObj(pl.playerObj)) {
@@ -340,41 +340,44 @@ void Combat::DoTeleportKill(ImGuiIO& /*io*/) {
             }
         }
     }
-    catch (...) {}
+    __except (EXCEPTION_EXECUTE_HANDLER) {}
 }
 
 void Combat::DoTriggerbot() {
     if (!bTriggerbot || !g_HasLocalPlayer || !g_LocalPlayerInfo.weaponManager) return;
 
-    static ULONGLONG s_LastTriggerTime = 0;
-    ULONGLONG now = GetTickCount64();
-    if (now - s_LastTriggerTime < (ULONGLONG)(fTriggerbotDelay * 1000.0f)) return;
+    __try {
+        static ULONGLONG s_LastTriggerTime = 0;
+        ULONGLONG now = GetTickCount64();
+        if (now - s_LastTriggerTime < (ULONGLONG)(fTriggerbotDelay * 1000.0f)) return;
 
-    void* activeCam = SDK::GetCurrentCamera();
-    if (!activeCam || !IsValidUnityObj(activeCam)) return;
+        void* activeCam = SDK::GetCurrentCamera();
+        if (!activeCam || !IsValidUnityObj(activeCam)) return;
 
-    ImGuiIO& io = ImGui::GetIO();
-    float cx = io.DisplaySize.x * 0.5f;
-    float cy = io.DisplaySize.y * 0.5f;
-    float sh = io.DisplaySize.y;
+        ImGuiIO& io = ImGui::GetIO();
+        float cx = io.DisplaySize.x * 0.5f;
+        float cy = io.DisplaySize.y * 0.5f;
+        float sh = io.DisplaySize.y;
 
-    for (const auto& data : g_ESPData) {
-        if (!data.isEnemy || data.isDead || data.hp <= 0) continue;
-        const BonePoint& targetBone = bTriggerbotHeadOnly ? data.head : (data.chest.valid ? data.chest : data.root);
-        if (!targetBone.valid) continue;
+        for (const auto& data : g_ESPData) {
+            if (!data.isEnemy || data.isDead || data.hp <= 0) continue;
+            const BonePoint& targetBone = bTriggerbotHeadOnly ? data.head : (data.chest.valid ? data.chest : data.root);
+            if (!targetBone.valid) continue;
 
-        float sx = targetBone.screen.x;
-        float sy = sh - targetBone.screen.y;
-        float dist = sqrtf((sx - cx) * (sx - cx) + (sy - cy) * (sy - cy));
+            float sx = targetBone.screen.x;
+            float sy = sh - targetBone.screen.y;
+            float dist = sqrtf((sx - cx) * (sx - cx) + (sy - cy) * (sy - cy));
 
-        if (dist <= 25.0f) {
-            void* activeWeapon = *(void**)((char*)g_LocalPlayerInfo.weaponManager + 0x120);
-            if (activeWeapon && IsValidUnityObj(activeWeapon) && SDK::ClientTryShoot) {
-                void* exc = nullptr;
-                g_Il2Cpp.il2cpp_runtime_invoke(SDK::ClientTryShoot, activeWeapon, nullptr, &exc);
-                s_LastTriggerTime = now;
-                break;
+            if (dist <= 25.0f) {
+                void* activeWeapon = *(void**)((char*)g_LocalPlayerInfo.weaponManager + 0x120);
+                if (activeWeapon && IsValidUnityObj(activeWeapon) && SDK::ClientTryShoot) {
+                    void* exc = nullptr;
+                    g_Il2Cpp.il2cpp_runtime_invoke(SDK::ClientTryShoot, activeWeapon, nullptr, &exc);
+                    s_LastTriggerTime = now;
+                    break;
+                }
             }
         }
     }
+    __except (EXCEPTION_EXECUTE_HANDLER) {}
 }

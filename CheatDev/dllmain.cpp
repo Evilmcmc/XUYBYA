@@ -255,27 +255,28 @@ static DWORD WINAPI InitThread(LPVOID lpParam) {
 
     Sleep(1200);
 
-    try {
+    __try {
         if (SDK::Initialize()) {
             CheatLog("[+] SDK and IL2CPP Initialized.");
         }
     }
-    catch (...) {
+    __except (EXCEPTION_EXECUTE_HANDLER) {
         CheatLog("[-] SDK::Initialize caught exception");
     }
 
-    try {
+    __try {
         if (Hooks::Initialize()) {
             CheatLog("[+] Hooks Installed. Ready for battle!");
         }
     }
-    catch (...) {
+    __except (EXCEPTION_EXECUTE_HANDLER) {
         CheatLog("[-] Hooks::Initialize caught exception");
     }
 
     Config::Load();
     return 0;
 }
+
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
     if (ul_reason_for_call == DLL_PROCESS_ATTACH) {
