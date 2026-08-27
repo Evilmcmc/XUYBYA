@@ -22,27 +22,72 @@ void Combat::DoAimbot(ImGuiIO& io) {
 
     float bestDist = (aimbotFOV > 0.0f) ? aimbotFOV : 99999.0f;
     float tgtX = 0.0f, tgtY = 0.0f;
+    bool found = false;
 
+    // 1. Try from active ESP projection data
     for (const auto& data : g_ESPData) {
         if (!data.isEnemy) continue;
         if (data.isDead || data.hp <= 0) continue;
-        if (data.aimScreenPos.z <= 0.3f) continue;
 
-        float sx = data.aimScreenPos.x;
-        float sy = sh - data.aimScreenPos.y;
+        Vector3 targetScreen{};
+        if (iAimbotTarget == 1 && data.head.valid) {
+            targetScreen = data.head.screen;
+        } else if (data.chest.valid) {
+            targetScreen = data.chest.screen;
+        } else if (data.root.valid) {
+            targetScreen = data.root.screen;
+        } else if (data.aimScreenPos.z > 0.1f) {
+            targetScreen = data.aimScreenPos;
+        }
+
+        if (targetScreen.z <= 0.1f) continue;
+
+        float sx = targetScreen.x;
+        float sy = sh - targetScreen.y;
 
         float dist = sqrtf((sx - cx) * (sx - cx) + (sy - cy) * (sy - cy));
         if (dist < bestDist) {
             bestDist = dist;
             tgtX = sx;
             tgtY = sy;
+            found = true;
         }
     }
 
-    if (tgtX > 0.0f && tgtY > 0.0f) {
+    // 2. Fallback: If ESP didn't have projected target, project from cached players directly
+    if (!found) {
+        void* activeCam = SDK::GetCurrentCamera();
+        if (activeCam && IsValidUnityObj(activeCam)) {
+            for (const auto& pl : g_CachedPlayers) {
+                if (!pl.isEnemy || pl.isDead || pl.hp <= 0 || !IsValidUnityObj(pl.playerObj)) continue;
+                void* targetRb = (iAimbotTarget == 1) ? (pl.chestRb ? pl.chestRb : pl.rootRb) : (pl.chestRb ? pl.chestRb : pl.rootRb);
+                Vector3 worldPos{};
+                if (targetRb && g_Il2Cpp.GetRigidbodyPosition(targetRb, &worldPos)) {
+                    if (iAimbotTarget == 1) worldPos = worldPos + Vector3(0.0f, 0.45f, 0.0f);
+                    Vector3 screenPos{};
+                    if (g_Il2Cpp.WorldToScreen(activeCam, worldPos, &screenPos) && screenPos.z > 0.1f) {
+                        float sx = screenPos.x;
+                        float sy = sh - screenPos.y;
+                        float dist = sqrtf((sx - cx) * (sx - cx) + (sy - cy) * (sy - cy));
+                        if (dist < bestDist) {
+                            bestDist = dist;
+                            tgtX = sx;
+                            tgtY = sy;
+                            found = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (found && (tgtX > 0.0f || tgtY > 0.0f)) {
         float smooth = (aimbotSmooth < 1.0f) ? 1.0f : aimbotSmooth;
-        float dx = (tgtX - cx) / smooth;
-        float dy = (tgtY - cy) / smooth;
+        float deltaX = (tgtX - cx);
+        float deltaY = (tgtY - cy);
+
+        float dx = deltaX / smooth;
+        float dy = deltaY / smooth;
 
         if (!std::isnan(dx) && !std::isinf(dx) && !std::isnan(dy) && !std::isinf(dy)) {
             if (dx >  aimbotMaxSpeed) dx =  aimbotMaxSpeed;
@@ -50,7 +95,23 @@ void Combat::DoAimbot(ImGuiIO& io) {
             if (dy >  aimbotMaxSpeed) dy =  aimbotMaxSpeed;
             if (dy < -aimbotMaxSpeed) dy = -aimbotMaxSpeed;
 
-            mouse_event(MOUSEEVENTF_MOVE, (DWORD)(long)dx, (DWORD)(long)dy, 0, 0);
+            static float accumX = 0.0f, accumY = 0.0f;
+            accumX += dx;
+            accumY += dy;
+
+            int moveX = (int)accumX;
+            int moveY = (int)accumY;
+
+            // Micro-step preservation for smooth tracking
+            if (moveX == 0 && fabsf(accumX) >= 0.4f) moveX = (accumX > 0.0f) ? 1 : -1;
+            if (moveY == 0 && fabsf(accumY) >= 0.4f) moveY = (accumY > 0.0f) ? 1 : -1;
+
+            accumX -= (float)moveX;
+            accumY -= (float)moveY;
+
+            if (moveX != 0 || moveY != 0) {
+                mouse_event(MOUSEEVENTF_MOVE, (DWORD)moveX, (DWORD)moveY, 0, 0);
+            }
 
             if (bAimbotAutoFire && g_HasLocalPlayer && g_LocalPlayerInfo.weaponManager) {
                 void* activeWeapon = *(void**)((char*)g_LocalPlayerInfo.weaponManager + 0x120);
@@ -80,21 +141,25 @@ bool Combat::GetSilentAimTargetPosition(Vector3* outTargetPos) {
         if (!pl.isEnemy || pl.isDead || pl.hp <= 0) continue;
         if (!IsValidUnityObj(pl.playerObj)) continue;
 
-        void* targetRb = pl.chestRb ? pl.chestRb : pl.rootRb;
-        if (!targetRb || !IsValidUnityObj(targetRb)) continue;
-
+        void* targetRb = (iSilentAimTarget == 1 && pl.chestRb) ? pl.chestRb : (pl.chestRb ? pl.chestRb : pl.rootRb);
         Vector3 bonePos{};
-        if (!g_Il2Cpp.GetRigidbodyPosition(targetRb, &bonePos)) continue;
-        if (fabsf(bonePos.x) < 0.001f && fabsf(bonePos.y) < 0.001f && fabsf(bonePos.z) < 0.001f) continue;
-
-        if (iSilentAimTarget == 1) {
-            bonePos = bonePos + Vector3(0.0f, 0.40f, 0.0f); // Head offset
+        if (targetRb && g_Il2Cpp.GetRigidbodyPosition(targetRb, &bonePos)) {
+            if (iSilentAimTarget == 1) {
+                bonePos = bonePos + Vector3(0.0f, 0.45f, 0.0f); // Head offset
+            }
+        } else {
+            void* pTransform = g_Il2Cpp.GetComponentTransform(pl.playerObj);
+            if (pTransform && g_Il2Cpp.GetTransformPosition(pTransform, &bonePos)) {
+                bonePos = bonePos + Vector3(0.0f, (iSilentAimTarget == 1) ? 1.30f : 0.85f, 0.0f);
+            } else {
+                continue;
+            }
         }
 
         float score = 0.0f;
         if (!bSilentAimFull360 && activeCam && IsValidUnityObj(activeCam)) {
             Vector3 screenPos{};
-            if (!g_Il2Cpp.WorldToScreen(activeCam, bonePos, &screenPos) || screenPos.z <= 0.3f) {
+            if (!g_Il2Cpp.WorldToScreen(activeCam, bonePos, &screenPos) || screenPos.z <= 0.1f) {
                 continue;
             }
             float sx = screenPos.x;
@@ -103,7 +168,18 @@ bool Combat::GetSilentAimTargetPosition(Vector3* outTargetPos) {
             if (distFromCenter > fSilentAimFOV) continue;
             score = distFromCenter;
         } else {
-            score = 1.0f;
+            // Distance-based priority in 360 mode
+            if (activeCam) {
+                void* camTr = g_Il2Cpp.GetComponentTransform(activeCam);
+                Vector3 camPos{};
+                if (camTr && g_Il2Cpp.GetTransformPosition(camTr, &camPos)) {
+                    score = (bonePos - camPos).Length();
+                } else {
+                    score = 1.0f;
+                }
+            } else {
+                score = 1.0f;
+            }
         }
 
         if (score < bestScore) {
@@ -119,6 +195,7 @@ bool Combat::GetSilentAimTargetPosition(Vector3* outTargetPos) {
     }
     return false;
 }
+
 
 void Combat::DoMassKill() {
     if (!bEnableMassKill || !g_HasLocalPlayer) return;
