@@ -226,7 +226,13 @@ public:
 
     MethodInfo* FindMethod(Il2CppClass* klass, const char* methodName, int argsCount) {
         if (!klass || !il2cpp_class_get_method_from_name) return nullptr;
-        return il2cpp_class_get_method_from_name(klass, methodName, argsCount);
+        Il2CppClass* cur = klass;
+        while (cur) {
+            MethodInfo* m = il2cpp_class_get_method_from_name(cur, methodName, argsCount);
+            if (m) return m;
+            cur = *(Il2CppClass**)((char*)cur + 0x18); // parent/base class in il2cpp
+        }
+        return nullptr;
     }
 
     void InitUnityClasses() {

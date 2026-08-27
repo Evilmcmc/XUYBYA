@@ -1,0 +1,335 @@
+#include "hooks/Hooks.h"
+#include "sdk/GameSDK.h"
+#include "features/Visuals.h"
+#include "features/Combat.h"
+#include "features/Exploits.h"
+#include "gui/Menu.h"
+#include "backends/imgui_impl_win32.h"
+#include "backends/imgui_impl_dx11.h"
+
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
+
+typedef HRESULT (__stdcall *Present_t)(IDXGISwapChain*, UINT, UINT);
+typedef HRESULT (__stdcall *ResizeBuffers_t)(IDXGISwapChain*, UINT, UINT, UINT, DXGI_FORMAT, UINT);
+typedef void    (*CMDShoot_t)(void* __this, Il2CppArray* _cameraPosition, Il2CppArray* _cameraForward, uint32_t tick, const MethodInfo* method);
+typedef void    (*DebugLog_Internal_Log_t)(int logType, int logOption, Il2CppString* msg, void* obj, const MethodInfo* method);
+typedef void    (*DebugLog_Internal_LogException_t)(Il2CppObject* exc, void* obj, const MethodInfo* method);
+typedef void    (*OnLobbyEntered_t)(void* __this, void* callback, const MethodInfo* method);
+typedef void    (*OnLobbyCreated_t)(void* __this, void* callback, const MethodInfo* method);
+typedef void    (*OnLobbyKicked_t)(void* __this, void* callback, const MethodInfo* method);
+
+static Present_t                      oPresent                      = nullptr;
+static ResizeBuffers_t                oResizeBuffers                = nullptr;
+static WNDPROC                        oWndProc                      = nullptr;
+static CMDShoot_t                     oCMDShoot                     = nullptr;
+static DebugLog_Internal_Log_t        oInternal_Log                 = nullptr;
+static DebugLog_Internal_LogException_t oInternal_LogException      = nullptr;
+static OnLobbyEntered_t               oOnLobbyEntered               = nullptr;
+static OnLobbyCreated_t               oOnLobbyCreated               = nullptr;
+static OnLobbyKicked_t                oOnLobbyKicked                = nullptr;
+
+static void CreateRTV(IDXGISwapChain* pSwapChain) {
+    ID3D11Texture2D* pBackBuffer = nullptr;
+    if (SUCCEEDED(pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&pBackBuffer))) {
+        g_pd3dDevice->CreateRenderTargetView(pBackBuffer, NULL, &g_mainRenderTargetView);
+        pBackBuffer->Release();
+    }
+}
+
+static void CleanupRTV() {
+    if (g_mainRenderTargetView) {
+        g_mainRenderTargetView->Release();
+        g_mainRenderTargetView = nullptr;
+    }
+}
+
+static DWORD_PTR* GetSwapChainVTable() {
+    HWND hWndDummy = CreateWindowA("BUTTON", "DummyD3D", WS_OVERLAPPED, 0, 0, 100, 100, NULL, NULL, NULL, NULL);
+    if (!hWndDummy) return nullptr;
+
+    DXGI_SWAP_CHAIN_DESC sd = {};
+    sd.BufferCount        = 1;
+    sd.BufferDesc.Format  = DXGI_FORMAT_R8G8B8A8_UNORM;
+    sd.BufferDesc.Width   = 100;
+    sd.BufferDesc.Height  = 100;
+    sd.BufferUsage        = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    sd.OutputWindow       = hWndDummy;
+    sd.SampleDesc.Count   = 1;
+    sd.Windowed           = TRUE;
+    sd.SwapEffect         = DXGI_SWAP_EFFECT_DISCARD;
+
+    const D3D_FEATURE_LEVEL levels[] = { D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_0 };
+    D3D_FEATURE_LEVEL       level;
+    IDXGISwapChain*         sc  = nullptr;
+    ID3D11Device*           dev = nullptr;
+    ID3D11DeviceContext*    ctx = nullptr;
+    DWORD_PTR*              vtable = nullptr;
+
+    if (SUCCEEDED(D3D11CreateDeviceAndSwapChain(NULL, D3D_DRIVER_TYPE_HARDWARE,
+        NULL, 0, levels, 2, D3D11_SDK_VERSION, &sd, &sc, &dev, &level, &ctx))) {
+        vtable = *(DWORD_PTR**)sc;
+        sc->Release();
+        dev->Release();
+        ctx->Release();
+    }
+
+    DestroyWindow(hWndDummy);
+    return vtable;
+}
+
+bool Hooks::Initialize() {
+    DWORD_PTR* vtable = GetSwapChainVTable();
+    if (!vtable) return false;
+
+    MH_Initialize();
+    MH_CreateHook((void*)vtable[8],  (LPVOID)&hkPresent,       (void**)&oPresent);
+    MH_CreateHook((void*)vtable[13], (LPVOID)&hkResizeBuffers, (void**)&oResizeBuffers);
+
+    if (SDK::CMDShoot) {
+        void* cmdShootTarget = *(void**)SDK::CMDShoot;
+        if (cmdShootTarget) {
+            MH_CreateHook(cmdShootTarget, (LPVOID)&hkCMDShoot, (void**)&oCMDShoot);
+        }
+    }
+
+    Il2CppImage* coreMod = g_Il2Cpp.GetImage("UnityEngine.CoreModule");
+    if (coreMod) {
+        Il2CppClass* debugLogHandlerClass = g_Il2Cpp.il2cpp_class_from_name(coreMod, "UnityEngine", "DebugLogHandler");
+        if (debugLogHandlerClass) {
+            MethodInfo* mInternalLog = g_Il2Cpp.FindMethod(debugLogHandlerClass, "Internal_Log", 4);
+            MethodInfo* mInternalLogEx = g_Il2Cpp.FindMethod(debugLogHandlerClass, "Internal_LogException", 2);
+            if (mInternalLog && *(void**)mInternalLog) {
+                MH_CreateHook(*(void**)mInternalLog, (LPVOID)&hkInternal_Log, (void**)&oInternal_Log);
+            }
+            if (mInternalLogEx && *(void**)mInternalLogEx) {
+                MH_CreateHook(*(void**)mInternalLogEx, (LPVOID)&hkInternal_LogException, (void**)&oInternal_LogException);
+            }
+        }
+    }
+
+    Il2CppImage* asmCS = g_Il2Cpp.GetImage("Assembly-CSharp");
+    if (asmCS) {
+        Il2CppClass* bootstrapManagerClass = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "BootstrapManager");
+        if (bootstrapManagerClass) {
+            MethodInfo* mOnLobbyEntered = g_Il2Cpp.FindMethod(bootstrapManagerClass, "OnLobbyEntered", 1);
+            MethodInfo* mOnLobbyCreated = g_Il2Cpp.FindMethod(bootstrapManagerClass, "OnLobbyCreated", 1);
+            MethodInfo* mOnLobbyKicked  = g_Il2Cpp.FindMethod(bootstrapManagerClass, "OnLobbyKicked", 1);
+
+            if (mOnLobbyEntered && *(void**)mOnLobbyEntered) {
+                MH_CreateHook(*(void**)mOnLobbyEntered, (LPVOID)&hkOnLobbyEntered, (void**)&oOnLobbyEntered);
+            }
+            if (mOnLobbyCreated && *(void**)mOnLobbyCreated) {
+                MH_CreateHook(*(void**)mOnLobbyCreated, (LPVOID)&hkOnLobbyCreated, (void**)&oOnLobbyCreated);
+            }
+            if (mOnLobbyKicked && *(void**)mOnLobbyKicked) {
+                MH_CreateHook(*(void**)mOnLobbyKicked, (LPVOID)&hkOnLobbyKicked, (void**)&oOnLobbyKicked);
+            }
+        }
+    }
+
+    MH_EnableHook(MH_ALL_HOOKS);
+    CheatLog("[+] Hooks: All DirectX and Engine hooks active!");
+    return true;
+}
+
+void Hooks::Shutdown() {
+    if (g_hWnd && oWndProc) {
+        SetWindowLongPtr(g_hWnd, GWLP_WNDPROC, (LONG_PTR)oWndProc);
+    }
+    MH_DisableHook(MH_ALL_HOOKS);
+    MH_Uninitialize();
+    CleanupRTV();
+}
+
+LRESULT __stdcall Hooks::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    if (!g_IsInitialized || !oWndProc || g_Uninjecting)
+        return DefWindowProc(hWnd, uMsg, wParam, lParam);
+
+    if (uMsg == WM_KEYDOWN || uMsg == WM_SYSKEYDOWN) {
+        if (wParam == VK_INSERT || wParam == VK_F1) {
+            g_ShowMenu = !g_ShowMenu;
+            if (g_ShowMenu) {
+                ClipCursor(NULL);
+                g_Il2Cpp.SetCursorState(true);
+            }
+            ImGui::GetIO().MouseDrawCursor = g_ShowMenu;
+            return 0;
+        }
+        if (wParam == VK_ESCAPE && g_ShowMenu) {
+            g_ShowMenu = false;
+            ImGui::GetIO().MouseDrawCursor = false;
+            return 0;
+        }
+    }
+
+    if (g_ShowMenu) {
+        ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam);
+
+        if (uMsg == WM_SETCURSOR) {
+            SetCursor(NULL);
+            return 1;
+        }
+
+        if ((uMsg >= WM_MOUSEFIRST && uMsg <= WM_MOUSELAST) ||
+            (uMsg >= WM_KEYFIRST && uMsg <= WM_KEYLAST) ||
+            uMsg == WM_CHAR || uMsg == WM_INPUT) {
+            return 0;
+        }
+    }
+
+    return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
+}
+
+HRESULT __stdcall Hooks::hkResizeBuffers(IDXGISwapChain* pSwapChain, UINT BufferCount, UINT Width, UINT Height, DXGI_FORMAT NewFormat, UINT SwapChainFlags) {
+    CleanupRTV();
+    HRESULT hr = oResizeBuffers(pSwapChain, BufferCount, Width, Height, NewFormat, SwapChainFlags);
+    CreateRTV(pSwapChain);
+    return hr;
+}
+
+HRESULT __stdcall Hooks::hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT Flags) {
+    if (g_Uninjecting) return oPresent(pSwapChain, SyncInterval, Flags);
+
+    if (!g_IsInitialized) {
+        if (SUCCEEDED(pSwapChain->GetDevice(__uuidof(ID3D11Device), (void**)&g_pd3dDevice))) {
+            g_pd3dDevice->GetImmediateContext(&g_pd3dDeviceContext);
+
+            DXGI_SWAP_CHAIN_DESC sd;
+            pSwapChain->GetDesc(&sd);
+            g_hWnd = sd.OutputWindow;
+
+            CreateRTV(pSwapChain);
+
+            oWndProc = (WNDPROC)SetWindowLongPtr(g_hWnd, GWLP_WNDPROC, (LONG_PTR)WndProc);
+
+            ImGui::CreateContext();
+            ImGuiIO& io = ImGui::GetIO();
+            io.ConfigFlags &= ~ImGuiConfigFlags_NoMouseCursorChange;
+            io.IniFilename  = nullptr;
+            io.FontGlobalScale = 1.0f;
+
+            // Load Google Sans / Segoe UI modern font
+            if (GetFileAttributesA("C:\\Windows\\Fonts\\segoeui.ttf") != INVALID_FILE_ATTRIBUTES) {
+                io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeui.ttf", 16.5f);
+            } else if (GetFileAttributesA("C:\\Windows\\Fonts\\arial.ttf") != INVALID_FILE_ATTRIBUTES) {
+                io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\arial.ttf", 16.0f);
+            }
+
+            Menu::InitializeTheme();
+
+            ImGui_ImplWin32_Init(g_hWnd);
+            ImGui_ImplDX11_Init(g_pd3dDevice, g_pd3dDeviceContext);
+
+            g_IsInitialized = true;
+        } else {
+            return oPresent(pSwapChain, SyncInterval, Flags);
+        }
+    }
+
+    if (!g_mainRenderTargetView) CreateRTV(pSwapChain);
+
+    if (g_pd3dDeviceContext && g_mainRenderTargetView && !g_Uninjecting) {
+        ImGui_ImplDX11_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        ImGui::NewFrame();
+
+        ImGuiIO& io = ImGui::GetIO();
+
+        // 1. Entities and ESP snapshot
+        SDK::ScanEntities();
+        SDK::UpdateESPData();
+        SDK::OptimizePerformance();
+
+        // 2. Feature dispatchers
+        Exploits::Update();
+        Combat::Update(io);
+
+        // 3. Render overlays
+        Visuals::Render(io);
+
+        // 4. Render Menu
+        io.MouseDrawCursor = g_ShowMenu;
+        if (g_ShowMenu) {
+            Menu::Render();
+        }
+
+        ImGui::Render();
+        g_pd3dDeviceContext->OMSetRenderTargets(1, &g_mainRenderTargetView, NULL);
+        ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+    }
+
+    return oPresent(pSwapChain, SyncInterval, Flags);
+}
+
+void Hooks::hkCMDShoot(void* __this, Il2CppArray* _cameraPosition, Il2CppArray* _cameraForward, uint32_t tick, const MethodInfo* method) {
+    Il2CppArray* outPos = _cameraPosition;
+    Il2CppArray* outFwd = _cameraForward;
+
+    __try {
+        if (bEnableSilentAim && outPos && outFwd && IsValidUnityObj(__this)) {
+            Vector3 targetWorldPos{};
+            if (Combat::GetSilentAimTargetPosition(&targetWorldPos)) {
+                Vector3 camPos{};
+                void* activeCam = SDK::GetCurrentCamera();
+                if (activeCam && IsValidUnityObj(activeCam)) {
+                    void* camTr = g_Il2Cpp.GetComponentTransform(activeCam);
+                    if (camTr && IsValidUnityObj(camTr)) g_Il2Cpp.GetTransformPosition(camTr, &camPos);
+                }
+
+                if (camPos.LengthSq() > 0.0001f) {
+                    Vector3 aimDir = targetWorldPos - camPos;
+                    float len = aimDir.Length();
+                    if (len > 0.001f) {
+                        aimDir = aimDir * (1.0f / len);
+                        if (SDK::PackDirectionMethod) {
+                            void* fwdArgs[1] = { &aimDir };
+                            void* exc = nullptr;
+                            Il2CppObject* packedFwd = g_Il2Cpp.il2cpp_runtime_invoke(SDK::PackDirectionMethod, nullptr, fwdArgs, &exc);
+                            if (packedFwd && !exc) {
+                                outFwd = (Il2CppArray*)packedFwd;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER) {}
+
+    if (oCMDShoot) {
+        oCMDShoot(__this, outPos, outFwd, tick, method);
+    }
+}
+
+void Hooks::hkInternal_Log(int logType, int logOption, Il2CppString* msg, void* obj, const MethodInfo* method) {
+    if (oInternal_Log) {
+        oInternal_Log(logType, logOption, msg, obj, method);
+    }
+}
+
+void Hooks::hkInternal_LogException(Il2CppObject* exc, void* obj, const MethodInfo* method) {
+    if (oInternal_LogException) {
+        oInternal_LogException(exc, obj, method);
+    }
+}
+
+void Hooks::hkOnLobbyEntered(void* __this, void* callback, const MethodInfo* method) {
+    SDK::ResetCache();
+    if (oOnLobbyEntered) {
+        oOnLobbyEntered(__this, callback, method);
+    }
+}
+
+void Hooks::hkOnLobbyCreated(void* __this, void* callback, const MethodInfo* method) {
+    SDK::ResetCache();
+    if (oOnLobbyCreated) {
+        oOnLobbyCreated(__this, callback, method);
+    }
+}
+
+void Hooks::hkOnLobbyKicked(void* __this, void* callback, const MethodInfo* method) {
+    SDK::ResetCache();
+    if (oOnLobbyKicked) {
+        oOnLobbyKicked(__this, callback, method);
+    }
+}
