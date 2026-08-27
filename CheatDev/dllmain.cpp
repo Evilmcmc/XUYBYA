@@ -18,9 +18,18 @@
 Il2CppResolver g_Il2Cpp;
 HMODULE g_hDllModule = NULL;
 
-// ─── Thread-Safe Diagnostic Logging & Crash Telemetry ────────────────────────
+// ─── Thread-Safe Diagnostic Logging & Tracing Telemetry ────────────────────────
 static CRITICAL_SECTION g_LogCs;
 static bool g_LogCsInitialized = false;
+
+struct GameLogEntry {
+    std::string timeStr;
+    int type; // 0: Error, 1: Assert, 2: Warning, 3: Log, 4: Exception, 5: Trace
+    std::string message;
+};
+static std::vector<GameLogEntry> g_GameLogs;
+static std::mutex g_GameLogMutex;
+static const size_t MAX_GAME_LOGS = 350;
 
 static std::string GetLogPath(const char* filename = "XUYBYA_Cheat.log") {
     char path[MAX_PATH];
@@ -34,7 +43,7 @@ static std::string GetLogPath(const char* filename = "XUYBYA_Cheat.log") {
     return filename;
 }
 
-static void CheatLog(const char* fmt, ...) {
+static void TraceLog(const char* category, const char* fmt, ...) {
     if (!g_LogCsInitialized) {
         InitializeCriticalSection(&g_LogCs);
         g_LogCsInitialized = true;
@@ -55,18 +64,44 @@ static void CheatLog(const char* fmt, ...) {
     vsnprintf(msgBuf, sizeof(msgBuf), fmt, args);
     va_end(args);
 
+    char fullMsg[1200];
+    snprintf(fullMsg, sizeof(fullMsg), "[%s] %s", category, msgBuf);
+
     std::string path = GetLogPath("XUYBYA_Cheat.log");
     FILE* f = fopen(path.c_str(), "a");
     if (f) {
-        fprintf(f, "%s%s\n", timeBuf, msgBuf);
+        fprintf(f, "%s%s\n", timeBuf, fullMsg);
         fflush(f);
         fclose(f);
     }
 
     LeaveCriticalSection(&g_LogCs);
+
+    // Stream into live in-game diagnostic telemetry UI
+    std::lock_guard<std::mutex> lock(g_GameLogMutex);
+    char timeOnly[32];
+    snprintf(timeOnly, sizeof(timeOnly), "%02d:%02d:%02d.%03d", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+    int logType = 3; // Log
+    if (strcmp(category, "CRASH") == 0 || strcmp(category, "EXCEPTION") == 0 || strcmp(category, "ERROR") == 0) logType = 4;
+    else if (strcmp(category, "WARNING") == 0) logType = 2;
+    else if (strcmp(category, "LOBBY") == 0 || strcmp(category, "NETWORK") == 0) logType = 5;
+
+    g_GameLogs.push_back({ timeOnly, logType, std::string("[") + category + "] " + msgBuf });
+    if (g_GameLogs.size() > MAX_GAME_LOGS) {
+        g_GameLogs.erase(g_GameLogs.begin());
+    }
 }
 
-// ─── Vectored Exception Handler (Automatic Crash Logger) ─────────────────────
+static void CheatLog(const char* fmt, ...) {
+    char msgBuf[1024];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(msgBuf, sizeof(msgBuf), fmt, args);
+    va_end(args);
+    TraceLog("CHEAT", "%s", msgBuf);
+}
+
+// ─── Vectored Exception Handler (Automatic Crash Logger & Tracer) ────────────
 static LONG WINAPI CrashHandler(PEXCEPTION_POINTERS pExc) {
     if (!pExc || !pExc->ExceptionRecord) return EXCEPTION_CONTINUE_SEARCH;
     DWORD code = pExc->ExceptionRecord->ExceptionCode;
@@ -78,7 +113,6 @@ static LONG WINAPI CrashHandler(PEXCEPTION_POINTERS pExc) {
         void* crashAddr = pExc->ExceptionRecord->ExceptionAddress;
         ULONGLONG now = GetTickCount64();
 
-        // Rate-limit crash logging to prevent disk I/O lockups on non-fatal background physics exceptions
         if (crashAddr == s_LastCrashAddr && (now - s_LastCrashLogTime < 3000)) {
             return EXCEPTION_CONTINUE_SEARCH;
         }
@@ -94,30 +128,28 @@ static LONG WINAPI CrashHandler(PEXCEPTION_POINTERS pExc) {
         }
         uintptr_t offset = hMod ? ((uintptr_t)crashAddr - (uintptr_t)hMod) : (uintptr_t)crashAddr;
 
-        CheatLog("\n========================================================");
-        CheatLog("!!! CRASH EXCEPTION DETECTED (Code: 0x%08X) !!!", code);
-        CheatLog("Crash Location   : 0x%p (%s + 0x%llX)", crashAddr, modName, (unsigned long long)offset);
+        TraceLog("CRASH", "========================================================");
+        TraceLog("CRASH", "!!! CRASH EXCEPTION DETECTED (Code: 0x%08X) !!!", code);
+        TraceLog("CRASH", "Crash Location   : 0x%p (%s + 0x%llX)", crashAddr, modName, (unsigned long long)offset);
 
         if (code == 0xC0000005 && pExc->ExceptionRecord->NumberParameters >= 2) {
             ULONG_PTR accessType = pExc->ExceptionRecord->ExceptionInformation[0];
             ULONG_PTR targetAddr = pExc->ExceptionRecord->ExceptionInformation[1];
-            CheatLog("Memory Violation : Attempted %s at address 0x%p",
+            TraceLog("CRASH", "Memory Violation : Attempted %s at address 0x%p",
                      accessType == 0 ? "READ" : (accessType == 1 ? "WRITE" : "EXECUTE"), (void*)targetAddr);
         }
 
         if (pExc->ContextRecord) {
-            CheatLog("CPU Registers:");
-            CheatLog("  RIP: 0x%016llX  RSP: 0x%016llX  RBP: 0x%016llX",
+            TraceLog("CRASH", "CPU Registers: RIP=0x%016llX RSP=0x%016llX RBP=0x%016llX RAX=0x%016llX RBX=0x%016llX RCX=0x%016llX RDX=0x%016llX",
                      (unsigned long long)pExc->ContextRecord->Rip,
                      (unsigned long long)pExc->ContextRecord->Rsp,
-                     (unsigned long long)pExc->ContextRecord->Rbp);
-            CheatLog("  RAX: 0x%016llX  RBX: 0x%016llX  RCX: 0x%016llX  RDX: 0x%016llX",
+                     (unsigned long long)pExc->ContextRecord->Rbp,
                      (unsigned long long)pExc->ContextRecord->Rax,
                      (unsigned long long)pExc->ContextRecord->Rbx,
                      (unsigned long long)pExc->ContextRecord->Rcx,
                      (unsigned long long)pExc->ContextRecord->Rdx);
         }
-        CheatLog("========================================================\n");
+        TraceLog("CRASH", "========================================================");
     }
 
     return EXCEPTION_CONTINUE_SEARCH;
@@ -132,6 +164,12 @@ Il2CppClass* g_RagdollCamClass          = nullptr;
 Il2CppClass* g_WeaponClass              = nullptr;
 Il2CppClass* g_WeaponManagerClass       = nullptr;
 Il2CppClass* g_DataPackerClass          = nullptr;
+Il2CppClass* g_GameCountdownClass       = nullptr;
+Il2CppClass* g_LevelLoaderClass         = nullptr;
+Il2CppClass* g_PlayerEndGameClass       = nullptr;
+Il2CppClass* g_HealthGracePeriodClass   = nullptr;
+MethodInfo*  g_DisableCountdownMethod   = nullptr;
+MethodInfo*  g_DestroyPlayerMethod      = nullptr;
 MethodInfo*  g_GetCurrentHealth         = nullptr;
 MethodInfo*  g_IsDeadMethod             = nullptr;
 MethodInfo*  g_CMDChangeCurrentHealth   = nullptr;
@@ -266,15 +304,6 @@ float colChamsTeamVis[4]    = { 0.20f, 0.70f, 1.00f, 0.75f }; // Visible Teammat
 float colChamsTeamOcc[4]    = { 0.10f, 0.40f, 0.80f, 0.50f }; // Occluded Teammate
 
 // ─── Game Engine & Unity Debug Log Interceptor ─────────────────────────────────
-struct GameLogEntry {
-    std::string timeStr;
-    int type; // 0: Error, 1: Assert, 2: Warning, 3: Log, 4: Exception
-    std::string message;
-};
-static std::vector<GameLogEntry> g_GameLogs;
-static std::mutex g_GameLogMutex;
-static const size_t MAX_GAME_LOGS = 250;
-
 static void WriteGameEngineLogToFile(const std::string& formatted) {
     char path[MAX_PATH];
     if (g_hDllModule && GetModuleFileNameA(g_hDllModule, path, MAX_PATH)) {
@@ -296,27 +325,23 @@ static void LogGameMessage(int logType, const std::string& msg) {
     char tBuf[32];
     snprintf(tBuf, sizeof(tBuf), "%02d:%02d:%02d.%03d", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
 
-    const char* typeStrs[] = { "[ERROR]", "[ASSERT]", "[WARNING]", "[LOG]", "[EXCEPTION]" };
-    const char* tStr = (logType >= 0 && logType <= 4) ? typeStrs[logType] : "[UNKNOWN]";
+    const char* typeStrs[] = { "ERROR", "ASSERT", "WARNING", "LOG", "EXCEPTION" };
+    const char* tStr = (logType >= 0 && logType <= 4) ? typeStrs[logType] : "UNKNOWN";
 
     char formatted[1024];
-    snprintf(formatted, sizeof(formatted), "[%s] %s %s", tBuf, tStr, msg.c_str());
+    snprintf(formatted, sizeof(formatted), "[%s] [%s] %s", tBuf, tStr, msg.c_str());
 
     WriteGameEngineLogToFile(formatted);
-
-    std::lock_guard<std::mutex> lock(g_GameLogMutex);
-    g_GameLogs.push_back({ tBuf, logType, msg });
-    if (g_GameLogs.size() > MAX_GAME_LOGS) {
-        g_GameLogs.erase(g_GameLogs.begin());
-    }
+    TraceLog("GAME", "[%s] %s", tStr, msg.c_str());
 }
 
 // Convert Il2CppString to std::string
 static std::string Il2CppStringToStdString(Il2CppString* str) {
-    if (!str) return "";
+    if (!IsValidMemPtr(str, 0x18)) return "";
     int32_t len = *(int32_t*)((char*)str + 0x10);
+    if (len <= 0 || len > 4096) return "";
     wchar_t* chars = (wchar_t*)((char*)str + 0x14);
-    if (!chars || len <= 0 || len > 4096) return "";
+    if (!IsValidMemPtr(chars, len * sizeof(wchar_t))) return "";
     int req = WideCharToMultiByte(CP_UTF8, 0, chars, len, NULL, 0, NULL, NULL);
     if (req <= 0) return "";
     std::string s(req, 0);
@@ -330,7 +355,7 @@ DebugLog_Internal_Log_t oInternal_Log = nullptr;
 
 void hkInternal_Log(int logType, int logOption, Il2CppString* msg, void* obj, const MethodInfo* method) {
     __try {
-        if (msg) {
+        if (msg && IsValidMemPtr(msg, 0x18)) {
             std::string str = Il2CppStringToStdString(msg);
             if (!str.empty()) {
                 LogGameMessage(logType, str);
@@ -349,16 +374,50 @@ DebugLog_Internal_LogException_t oInternal_LogException = nullptr;
 
 void hkInternal_LogException(Il2CppObject* exc, void* obj, const MethodInfo* method) {
     __try {
-        if (exc) {
+        if (exc && IsValidMemPtr(exc, 0x20)) {
             Il2CppString* msgStr = *(Il2CppString**)((char*)exc + 0x18);
-            std::string str = Il2CppStringToStdString(msgStr);
-            LogGameMessage(4, str.empty() ? "Uncaught Unity Game Exception" : str);
+            if (msgStr && IsValidMemPtr(msgStr, 0x18)) {
+                std::string str = Il2CppStringToStdString(msgStr);
+                LogGameMessage(4, str.empty() ? "Uncaught Unity Game Exception" : str);
+            }
         }
     }
     __except(EXCEPTION_EXECUTE_HANDLER) {}
 
     if (oInternal_LogException) {
         oInternal_LogException(exc, obj, method);
+    }
+}
+
+// ─── Lobby Event Hook Definitions ────────────────────────────────────────────
+typedef void (*OnLobbyEntered_t)(void* __this, void* callback, const MethodInfo* method);
+OnLobbyEntered_t oOnLobbyEntered = nullptr;
+
+void hkOnLobbyEntered(void* __this, void* callback, const MethodInfo* method) {
+    uint64_t lId = g_Il2Cpp.GetCurrentLobbyID();
+    TraceLog("LOBBY", "Entered game lobby! CurrentLobbyID=0x%llX", (unsigned long long)lId);
+    if (oOnLobbyEntered) {
+        oOnLobbyEntered(__this, callback, method);
+    }
+}
+
+typedef void (*OnLobbyCreated_t)(void* __this, void* callback, const MethodInfo* method);
+OnLobbyCreated_t oOnLobbyCreated = nullptr;
+
+void hkOnLobbyCreated(void* __this, void* callback, const MethodInfo* method) {
+    TraceLog("LOBBY", "Hosted new game lobby! Initializing room settings.");
+    if (oOnLobbyCreated) {
+        oOnLobbyCreated(__this, callback, method);
+    }
+}
+
+typedef void (*OnLobbyKicked_t)(void* __this, void* callback, const MethodInfo* method);
+OnLobbyKicked_t oOnLobbyKicked = nullptr;
+
+void hkOnLobbyKicked(void* __this, void* callback, const MethodInfo* method) {
+    TraceLog("LOBBY", "[!] Disconnected or kicked from lobby!");
+    if (oOnLobbyKicked) {
+        oOnLobbyKicked(__this, callback, method);
     }
 }
 
@@ -448,6 +507,10 @@ bool  bGrappleMagnetAim      = false;
 
 bool  bCustomFOV             = false;
 float fCustomFOVValue        = 100.0f;
+
+// ─── Fast Loading & End-Game Match Terminator Exploits ───────────────────────
+bool  bFastLoadingOptimizer  = true;   // Instant countdown & level loading bypass
+bool  bEndGameMatchTrigger   = false;  // Force match termination & victory trigger
 
 // ─── Config System ────────────────────────────────────────────────────────────
 static char g_ConfigStatus[128] = "";
@@ -590,6 +653,7 @@ static void SaveConfig() {
     f << "bGrappleMagnetAim=" << bGrappleMagnetAim << "\n";
     f << "bCustomFOV=" << bCustomFOV << "\n";
     f << "fCustomFOVValue=" << fCustomFOVValue << "\n";
+    f << "bFastLoadingOptimizer=" << bFastLoadingOptimizer << "\n";
 
     f << "\n[Misc]\n";
     f << "bGodMode=" << bGodMode << "\n";
@@ -731,6 +795,7 @@ static void LoadConfig() {
 
             else if (key == "bCustomFOV") bCustomFOV = ParseBool(val);
             else if (key == "fCustomFOVValue") fCustomFOVValue = ParseFloat(val);
+            else if (key == "bFastLoadingOptimizer") bFastLoadingOptimizer = ParseBool(val);
 
             else if (key == "bGodMode") bGodMode = ParseBool(val);
         } catch (...) {}
@@ -936,6 +1001,10 @@ Present_t       oPresent       = nullptr;
 ResizeBuffers_t oResizeBuffers = nullptr;
 
 static void CleanupRTV() {
+    if (g_pd3dDeviceContext) {
+        ID3D11RenderTargetView* nullViews[] = { nullptr };
+        g_pd3dDeviceContext->OMSetRenderTargets(1, nullViews, nullptr);
+    }
     if (g_mainRenderTargetView) {
         g_mainRenderTargetView->Release();
         g_mainRenderTargetView = nullptr;
@@ -943,11 +1012,13 @@ static void CleanupRTV() {
 }
 
 static void CreateRTV(IDXGISwapChain* pSwapChain) {
-    if (!g_pd3dDevice) return;
+    if (!g_pd3dDevice || !pSwapChain) return;
     ID3D11Texture2D* pBB = nullptr;
     if (SUCCEEDED(pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBB))) {
-        g_pd3dDevice->CreateRenderTargetView(pBB, NULL, &g_mainRenderTargetView);
-        pBB->Release();
+        if (pBB) {
+            g_pd3dDevice->CreateRenderTargetView(pBB, NULL, &g_mainRenderTargetView);
+            pBB->Release();
+        }
     }
 }
 
@@ -963,27 +1034,32 @@ HRESULT __stdcall hkResizeBuffers(IDXGISwapChain* pSC, UINT bc, UINT w, UINT h, 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
 WNDPROC oWndProc = nullptr;
 
-// ─── Unity Cursor Unlock Helper ──────────────────────────────────────────────
+// ─── Unity Cursor Hooks (Prevents Unity from re-locking cursor while menu is open) ───
 typedef void (*SetLockState_t)(int lockMode);
 typedef void (*SetVisible_t)(bool visible);
-static SetLockState_t s_SetLockState = nullptr;
-static SetVisible_t s_SetVisible = nullptr;
-static bool s_CursorFuncsResolved = false;
+SetLockState_t oSetLockState = nullptr;
+SetVisible_t   oSetVisible   = nullptr;
+
+void hkSetLockState(int lockMode) {
+    if (g_ShowMenu) {
+        if (oSetLockState) oSetLockState(0); // CursorLockMode.None
+        return;
+    }
+    if (oSetLockState) oSetLockState(lockMode);
+}
+
+void hkSetVisible(bool visible) {
+    if (g_ShowMenu) {
+        if (oSetVisible) oSetVisible(true);
+        return;
+    }
+    if (oSetVisible) oSetVisible(visible);
+}
 
 static void EnsureCursorUnlocked(bool menuOpen) {
-    if (!s_CursorFuncsResolved && g_Il2Cpp.il2cpp_resolve_icall) {
-        s_SetLockState = (SetLockState_t)g_Il2Cpp.il2cpp_resolve_icall("UnityEngine.Cursor::set_lockState(UnityEngine.CursorLockMode)");
-        if (!s_SetLockState) s_SetLockState = (SetLockState_t)g_Il2Cpp.il2cpp_resolve_icall("UnityEngine.Cursor::set_lockState");
-        s_SetVisible = (SetVisible_t)g_Il2Cpp.il2cpp_resolve_icall("UnityEngine.Cursor::set_visible(System.Boolean)");
-        if (!s_SetVisible) s_SetVisible = (SetVisible_t)g_Il2Cpp.il2cpp_resolve_icall("UnityEngine.Cursor::set_visible");
-        s_CursorFuncsResolved = true;
-    }
-
     if (menuOpen) {
         ClipCursor(NULL);
-        while (ShowCursor(TRUE) < 0);
-        if (s_SetLockState) s_SetLockState(0); // CursorLockMode.None
-        if (s_SetVisible) s_SetVisible(true);
+        g_Il2Cpp.SetCursorState(true);
     }
 }
 
@@ -997,12 +1073,13 @@ LRESULT __stdcall WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
         if (wParam == VK_INSERT || wParam == VK_F1) {
             g_ShowMenu = !g_ShowMenu;
             EnsureCursorUnlocked(g_ShowMenu);
+            ImGui::GetIO().MouseDrawCursor = g_ShowMenu;
             return 0;
         }
-        // ESC closes cheat menu, does NOT propagate to game pause
+        // ESC closes cheat menu if open, otherwise let ESC pass to game pause menu!
         if (wParam == VK_ESCAPE && g_ShowMenu) {
             g_ShowMenu = false;
-            EnsureCursorUnlocked(false);
+            ImGui::GetIO().MouseDrawCursor = false;
             return 0;
         }
     }
@@ -1011,13 +1088,13 @@ LRESULT __stdcall WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
         // Pass events to ImGui handler
         ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam);
 
-        // Allow Windows cursor display
+        // Windows cursor display: hide OS cursor since ImGui draws its own cursor (prevents double cursor)
         if (uMsg == WM_SETCURSOR) {
-            SetCursor(LoadCursor(NULL, IDC_ARROW));
+            SetCursor(NULL);
             return 1;
         }
 
-        // Swallow mouse and keyboard input messages only, so the game doesn't process them
+        // Swallow mouse and keyboard input messages only, so the game doesn't process them while menu is open
         if ((uMsg >= WM_MOUSEFIRST && uMsg <= WM_MOUSELAST) ||
             (uMsg >= WM_KEYFIRST && uMsg <= WM_KEYLAST) ||
             uMsg == WM_CHAR || uMsg == WM_INPUT) {
@@ -1025,9 +1102,10 @@ LRESULT __stdcall WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
         }
     }
 
-    // Pass all other window messages (WM_ACTIVATE, WM_PAINT, WM_SIZE, etc.) to the game's original WndProc
+    // Pass all other window messages to the game's original WndProc
     return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
 }
+
 
 
 // ─── Clean Uninject Routine ─────────────────────────────────────────────────
@@ -1075,10 +1153,162 @@ void RequestUninject() {
     CreateThread(nullptr, 0, UninjectThread, nullptr, 0, nullptr);
 }
 
+// ─── Unified Crash-Proof Entity Cache & Memory Structure ─────────────────────
+struct CachedPlayerInfo {
+    void* playerObj     = nullptr;
+    bool  isLocal       = false;
+    bool  awayTeam      = false;
+    bool  isEnemy       = true;
+    bool  isDead        = false;
+    int   hp            = 100;
+    int   maxHp         = 100;
+
+    void* spineRb       = nullptr;
+    void* rootRb        = nullptr;
+    void* lFootRb       = nullptr;
+    void* rFootRb       = nullptr;
+    void* lKneeRb       = nullptr;
+    void* rKneeRb       = nullptr;
+    void* lHandRb       = nullptr;
+    void* rHandRb       = nullptr;
+    void* lElbowRb      = nullptr;
+    void* rElbowRb      = nullptr;
+    void* lUpperArmRb   = nullptr;
+    void* rUpperArmRb   = nullptr;
+    void* lShoulderRb   = nullptr;
+    void* rShoulderRb   = nullptr;
+    void* chestRb       = nullptr;
+
+    void* healthComp    = nullptr;
+    void* graceComp     = nullptr;
+    void* playerMovement= nullptr;
+    void* weaponManager = nullptr;
+};
+
+static std::vector<CachedPlayerInfo> g_CachedPlayers;
+static CachedPlayerInfo              g_LocalPlayerInfo;
+static bool                          g_HasLocalPlayer      = false;
+static ULONGLONG                     g_LastPlayerScanTime  = 0;
+
+static void ScanGameEntities() {
+    ULONGLONG now = GetTickCount64();
+    if (now - g_LastPlayerScanTime < 60) return; // Throttle to ~16 Hz, eliminating GC allocation spam & memory corruption
+    g_LastPlayerScanTime = now;
+
+    if (!g_PlayerClass) return;
+
+    __try {
+        g_Il2Cpp.EnsureThreadAttached();
+        Il2CppArray* arr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
+        if (!arr || !IsValidMemPtr(arr, 0x28)) return;
+
+        uintptr_t count = *(uintptr_t*)((char*)arr + 0x18);
+        if (count == 0 || count > 64) return;
+
+        void** items = (void**)((char*)arr + 0x20);
+        if (!IsValidMemPtr(items, count * sizeof(void*))) return;
+
+        std::vector<CachedPlayerInfo> newPlayers;
+        newPlayers.reserve(count);
+
+        bool foundLocal = false;
+        CachedPlayerInfo localInfo{};
+
+        for (uintptr_t i = 0; i < count; i++) {
+            void* p = items[i];
+            if (!IsValidUnityObj(p)) continue;
+            if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(p) || !g_Il2Cpp.IsSpawned(p)) continue;
+
+            CachedPlayerInfo info{};
+            info.playerObj = p;
+            info.isLocal = g_Il2Cpp.IsLocalPlayer(p);
+
+            // Read Health: SyncVar<int> at Health+0x100 is a heap object, _value is at +0x84 inside it
+            if (g_HealthClass) {
+                info.healthComp = g_Il2Cpp.GetComponent(p, g_HealthClass);
+                if (info.healthComp && IsValidUnityObj(info.healthComp)) {
+                    info.maxHp = *(int*)((char*)info.healthComp + 0xF8);
+                    if (info.maxHp <= 0 || info.maxHp > 10000) info.maxHp = 100;
+
+                    // SyncVar<int> object ptr at +0x100; _value field at SyncVar_obj+0x84
+                    void* curHpSyncVarObj = *(void**)((char*)info.healthComp + 0x100);
+                    if (curHpSyncVarObj && IsValidMemPtr(curHpSyncVarObj, 0x90)) {
+                        info.hp = *(int*)((char*)curHpSyncVarObj + 0x84);
+                    } else {
+                        info.hp = info.maxHp;
+                    }
+
+                    if (info.hp < 0 || info.hp > 10000) info.hp = info.maxHp;
+                    info.isDead = (info.hp <= 0);
+                }
+            }
+
+            // Read Team
+            if (g_PlayerMovementClass) {
+                info.playerMovement = g_Il2Cpp.GetComponent(p, g_PlayerMovementClass);
+                if (info.playerMovement && IsValidUnityObj(info.playerMovement)) {
+                    info.awayTeam = *(bool*)((char*)info.playerMovement + 0x1C4);
+                }
+            } else if (g_SharedRefClass) {
+                void* sr = g_Il2Cpp.GetComponent(p, g_SharedRefClass);
+                if (sr && IsValidUnityObj(sr)) {
+                    info.awayTeam = *(bool*)((char*)sr + 0x108);
+                }
+            }
+
+            if (g_WeaponManagerClass) {
+                info.weaponManager = g_Il2Cpp.GetComponent(p, g_WeaponManagerClass);
+            }
+            if (g_HealthGracePeriodClass) {
+                info.graceComp = g_Il2Cpp.GetComponent(p, g_HealthGracePeriodClass);
+            }
+
+            auto ReadRb = [](void* obj, size_t offset) -> void* {
+                void* rb = *(void**)((char*)obj + offset);
+                return (rb && IsValidUnityObj(rb)) ? rb : nullptr;
+            };
+
+            info.spineRb     = ReadRb(p, 0x100);
+            info.rootRb      = ReadRb(p, 0x108);
+            info.lFootRb     = ReadRb(p, 0x110);
+            info.rFootRb     = ReadRb(p, 0x118);
+            info.lKneeRb     = ReadRb(p, 0x120);
+            info.rKneeRb     = ReadRb(p, 0x128);
+            info.lHandRb     = ReadRb(p, 0x130);
+            info.rHandRb     = ReadRb(p, 0x138);
+            info.lElbowRb    = ReadRb(p, 0x140);
+            info.rElbowRb    = ReadRb(p, 0x148);
+            info.lUpperArmRb = ReadRb(p, 0x150);
+            info.rUpperArmRb = ReadRb(p, 0x158);
+            info.lShoulderRb = ReadRb(p, 0x160);
+            info.rShoulderRb = ReadRb(p, 0x168);
+            info.chestRb     = ReadRb(p, 0x170);
+
+            if (info.isLocal) {
+                foundLocal = true;
+                localInfo = info;
+            }
+
+            newPlayers.push_back(info);
+        }
+
+        for (auto& pl : newPlayers) {
+            pl.isEnemy = foundLocal ? (pl.awayTeam != localInfo.awayTeam) : true;
+        }
+
+        g_CachedPlayers  = newPlayers;
+        g_HasLocalPlayer = foundLocal;
+        if (foundLocal) {
+            g_LocalPlayerInfo = localInfo;
+        }
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER) {}
+}
+
 // ─── Helper to resolve bone world & screen position ──────────────────────────
 static void ResolveBoneSafe(void* mainCam, void* rbPtr, BonePoint& outBone) {
     outBone.valid = false;
-    if (!rbPtr || !mainCam) return;
+    if (!rbPtr || !mainCam || !IsValidUnityObj(rbPtr) || !IsValidUnityObj(mainCam)) return;
 
     __try {
         if (g_Il2Cpp.GetRigidbodyPosition(rbPtr, &outBone.world)) {
@@ -1110,44 +1340,15 @@ static void ResolveBoneSafe(void* mainCam, void* rbPtr, BonePoint& outBone) {
 // ─── Helper to get the currently active camera (Alive, Dead, or Spectating) ──
 static void* GetCurrentGameCamera() {
     __try {
-        // 1. Prioritize Local PlayerMovement -> _cam -> cam
-        if (g_PlayerMovementClass) {
-            Il2CppArray* pmArr = g_Il2Cpp.FindObjectsOfType(g_PlayerMovementClass);
-            if (pmArr) {
-                uintptr_t cnt = *(uintptr_t*)((char*)pmArr + 0x18);
-                if (cnt > 0 && cnt <= 64) {
-                    void** items = (void**)((char*)pmArr + 0x20);
-                    for (uintptr_t i = 0; i < cnt; i++) {
-                        if (items[i] && g_Il2Cpp.IsLocalPlayer(items[i])) {
-                            void* rCamCtrl = *(void**)((char*)items[i] + 0x220);
-                            if (rCamCtrl) {
-                                void* rCam = *(void**)((char*)rCamCtrl + 0x140);
-                                if (rCam) return rCam;
-                            }
-                        }
-                    }
+        if (g_HasLocalPlayer) {
+            if (g_LocalPlayerInfo.playerMovement && IsValidUnityObj(g_LocalPlayerInfo.playerMovement)) {
+                void* rCamCtrl = *(void**)((char*)g_LocalPlayerInfo.playerMovement + 0x220);
+                if (rCamCtrl && IsValidUnityObj(rCamCtrl)) {
+                    void* rCam = *(void**)((char*)rCamCtrl + 0x140);
+                    if (rCam && IsValidUnityObj(rCam)) return rCam;
                 }
             }
         }
-
-        // 2. Prioritize Local RagdollCameraController -> cam
-        if (g_RagdollCamClass) {
-            Il2CppArray* camArr = g_Il2Cpp.FindObjectsOfType(g_RagdollCamClass);
-            if (camArr) {
-                uintptr_t cnt = *(uintptr_t*)((char*)camArr + 0x18);
-                if (cnt > 0 && cnt <= 64) {
-                    void** items = (void**)((char*)camArr + 0x20);
-                    for (uintptr_t i = 0; i < cnt; i++) {
-                        if (items[i] && g_Il2Cpp.IsLocalPlayer(items[i])) {
-                            void* rCam = *(void**)((char*)items[i] + 0x140);
-                            if (rCam) return rCam;
-                        }
-                    }
-                }
-            }
-        }
-
-        // 3. Fallback to Camera.main / current
         return g_Il2Cpp.GetMainCamera();
     }
     __except(EXCEPTION_EXECUTE_HANDLER) {
@@ -1164,237 +1365,113 @@ static void UpdateFrameESPData() {
 
     __try {
         void* activeCam = GetCurrentGameCamera();
-        if (!activeCam) return;
+        if (!activeCam || !IsValidUnityObj(activeCam)) {
+            g_ESPData.clear();
+            return;
+        }
 
         std::vector<PlayerESPData> newData;
+        newData.reserve(g_CachedPlayers.size());
 
-        Il2CppArray* arr = nullptr;
-        if (g_PlayerClass) {
-            arr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
-        }
+        for (const auto& pl : g_CachedPlayers) {
+            if (!IsValidUnityObj(pl.playerObj)) continue;
+            if (bIgnoreDead && (pl.isDead || pl.hp <= 0)) continue;
+            if (bIgnoreTeammates && !pl.isEnemy && !pl.isLocal) continue;
+            if (bIgnoreLocal && pl.isLocal) continue;
 
-        if (arr) {
-            uintptr_t count = *(uintptr_t*)((char*)arr + 0x18);
-            if (count == 0 || count > 128) return;
+            PlayerESPData data{};
+            data.isLocal  = pl.isLocal;
+            data.hp       = pl.hp;
+            data.maxHp    = pl.maxHp;
+            data.isDead   = pl.isDead;
+            data.awayTeam = pl.awayTeam;
+            data.isEnemy  = pl.isEnemy;
 
-            void** items = (void**)((char*)arr + 0x20);
+            ResolveBoneSafe(activeCam, pl.chestRb,     data.chest);
+            ResolveBoneSafe(activeCam, pl.spineRb,     data.spine);
+            ResolveBoneSafe(activeCam, pl.rootRb,      data.root);
+            ResolveBoneSafe(activeCam, pl.lShoulderRb, data.lShoulder);
+            ResolveBoneSafe(activeCam, pl.lUpperArmRb, data.lUpperArm);
+            ResolveBoneSafe(activeCam, pl.lElbowRb,    data.lElbow);
+            ResolveBoneSafe(activeCam, pl.lHandRb,     data.lHand);
+            ResolveBoneSafe(activeCam, pl.rShoulderRb, data.rShoulder);
+            ResolveBoneSafe(activeCam, pl.rUpperArmRb, data.rUpperArm);
+            ResolveBoneSafe(activeCam, pl.rElbowRb,    data.rElbow);
+            ResolveBoneSafe(activeCam, pl.rHandRb,     data.rHand);
+            ResolveBoneSafe(activeCam, pl.lKneeRb,     data.lKnee);
+            ResolveBoneSafe(activeCam, pl.lFootRb,     data.lFoot);
+            ResolveBoneSafe(activeCam, pl.rKneeRb,     data.rKnee);
+            ResolveBoneSafe(activeCam, pl.rFootRb,     data.rFoot);
 
-            // 1. Identify local player and their real team
-            bool localAwayTeam = false;
-            bool foundLocal = false;
-
-            for (uintptr_t i = 0; i < count; i++) {
-                void* playerObj = items[i];
-                if (!playerObj) continue;
-
-                if (g_Il2Cpp.IsLocalPlayer(playerObj)) {
-                    foundLocal = true;
-                    if (g_PlayerMovementClass) {
-                        void* pm = g_Il2Cpp.GetComponent(playerObj, g_PlayerMovementClass);
-                        if (pm) {
-                            localAwayTeam = *(bool*)((char*)pm + 0x1C4);
-                        }
+            // Compute head position
+            if (data.chest.valid) {
+                Vector3 headWorld = data.chest.world + Vector3(0.0f, 0.40f, 0.0f);
+                data.head.world   = headWorld;
+                if (g_Il2Cpp.WorldToScreen(activeCam, headWorld, &data.head.screen)) {
+                    if (data.head.screen.z > 0.5f && data.head.screen.z < 500.0f &&
+                        !std::isnan(data.head.screen.x) && !std::isnan(data.head.screen.y)) {
+                        data.head.valid = true;
                     }
-                    break;
                 }
             }
 
-            for (uintptr_t i = 0; i < count; i++) {
-                void* playerObj = items[i];
-                if (!playerObj) continue;
+            // Distance
+            if (data.root.valid) {
+                data.distance = data.root.screen.z;
+            } else if (data.chest.valid) {
+                data.distance = data.chest.screen.z;
+            }
 
-                // Filter out inactive / despawned game objects
-                if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(playerObj))
-                    continue;
+            if (data.distance > fMaxDistance || data.distance <= 0.0f) continue;
 
-                if (!g_Il2Cpp.IsSpawned(playerObj))
-                    continue;
+            // Compute 2D bounding box
+            float minX = 99999.0f, maxX = -99999.0f;
+            float minY = 99999.0f, maxY = -99999.0f;
+            int validCount = 0;
 
-                PlayerESPData data{};
-                data.isLocal = g_Il2Cpp.IsLocalPlayer(playerObj);
+            const BonePoint* allBones[] = {
+                &data.head, &data.chest, &data.spine, &data.root,
+                &data.lShoulder, &data.lUpperArm, &data.lElbow, &data.lHand,
+                &data.rShoulder, &data.rUpperArm, &data.rElbow, &data.rHand,
+                &data.lKnee, &data.lFoot, &data.rKnee, &data.rFoot
+            };
 
-                // Read Health & Team
-                data.maxHp = 100;
-                data.hp    = 100;
-                data.isDead= false;
-
-                if (g_HealthClass) {
-                    void* healthComp = g_Il2Cpp.GetComponent(playerObj, g_HealthClass);
-                    if (healthComp) {
-                        data.maxHp = *(int*)((char*)healthComp + 0xF8);
-                        if (g_GetCurrentHealth) {
-                            void* exc = nullptr;
-                            Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(
-                                g_GetCurrentHealth, healthComp, nullptr, &exc);
-                            if (res && !exc) {
-                                data.hp = *(int*)((char*)res + 0x10);
-                            }
-                        }
-                        if (g_IsDeadMethod) {
-                            void* exc = nullptr;
-                            Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(
-                                g_IsDeadMethod, healthComp, nullptr, &exc);
-                            if (res && !exc) {
-                                data.isDead = *(bool*)((char*)res + 0x10);
-                            }
-                        }
-                    }
-                }
-
-                if (bIgnoreDead && (data.isDead || data.hp <= 0)) {
-                    continue;
-                }
-
-                // Team resolution
-                if (g_PlayerMovementClass) {
-                    void* pm = g_Il2Cpp.GetComponent(playerObj, g_PlayerMovementClass);
-                    if (pm) {
-                        data.awayTeam = *(bool*)((char*)pm + 0x1C4);
-                    }
-                } else if (g_SharedRefClass) {
-                    void* sharedRef = g_Il2Cpp.GetComponent(playerObj, g_SharedRefClass);
-                    if (sharedRef) {
-                        data.awayTeam = *(bool*)((char*)sharedRef + 0x108);
-                    }
-                }
-
-                if (bIgnoreTeammates && foundLocal && (data.awayTeam == localAwayTeam) && !data.isLocal) {
-                    continue;
-                }
-
-                data.isEnemy = foundLocal ? (data.awayTeam != localAwayTeam) : true;
-
-                // Read all 15 physics Rigidbody pointers safely
-                void* spineRb     = *(void**)((char*)playerObj + 0x100);
-                void* rootRb      = *(void**)((char*)playerObj + 0x108);
-                void* lFootRb     = *(void**)((char*)playerObj + 0x110);
-                void* rFootRb     = *(void**)((char*)playerObj + 0x118);
-                void* lKneeRb     = *(void**)((char*)playerObj + 0x120);
-                void* rKneeRb     = *(void**)((char*)playerObj + 0x128);
-                void* lHandRb     = *(void**)((char*)playerObj + 0x130);
-                void* rHandRb     = *(void**)((char*)playerObj + 0x138);
-                void* lElbowRb    = *(void**)((char*)playerObj + 0x140);
-                void* rElbowRb    = *(void**)((char*)playerObj + 0x148);
-                void* lUpperArmRb = *(void**)((char*)playerObj + 0x150);
-                void* rUpperArmRb = *(void**)((char*)playerObj + 0x158);
-                void* lShoulderRb = *(void**)((char*)playerObj + 0x160);
-                void* rShoulderRb = *(void**)((char*)playerObj + 0x168);
-                void* chestRb     = *(void**)((char*)playerObj + 0x170);
-
-                ResolveBoneSafe(activeCam, chestRb,     data.chest);
-                ResolveBoneSafe(activeCam, spineRb,     data.spine);
-                ResolveBoneSafe(activeCam, rootRb,      data.root);
-                ResolveBoneSafe(activeCam, lShoulderRb, data.lShoulder);
-                ResolveBoneSafe(activeCam, lUpperArmRb, data.lUpperArm);
-                ResolveBoneSafe(activeCam, lElbowRb,    data.lElbow);
-                ResolveBoneSafe(activeCam, lHandRb,     data.lHand);
-                ResolveBoneSafe(activeCam, rShoulderRb, data.rShoulder);
-                ResolveBoneSafe(activeCam, rUpperArmRb, data.rUpperArm);
-                ResolveBoneSafe(activeCam, rElbowRb,    data.rElbow);
-                ResolveBoneSafe(activeCam, rHandRb,     data.rHand);
-                ResolveBoneSafe(activeCam, lKneeRb,     data.lKnee);
-                ResolveBoneSafe(activeCam, lFootRb,     data.lFoot);
-                ResolveBoneSafe(activeCam, rKneeRb,     data.rKnee);
-                ResolveBoneSafe(activeCam, rFootRb,     data.rFoot);
-
-                if (!data.chest.valid && !data.root.valid)
-                    continue;
-
-                // Synthesize Head point from Chest position (+0.38m up)
-                if (data.chest.valid) {
-                    data.head.world = data.chest.world + Vector3(0.0f, 0.38f, 0.0f);
-                    if (g_Il2Cpp.WorldToScreen(activeCam, data.head.world, &data.head.screen)) {
-                        if (data.head.screen.z > 0.5f && data.head.screen.z < 500.0f) data.head.valid = true;
-                    }
-                }
-
-                std::vector<Vector3> validPoints;
-                auto AddPoint = [&](const BonePoint& b) {
-                    if (b.valid && b.screen.z > 0.5f) validPoints.push_back(b.screen);
-                };
-
-                AddPoint(data.head);
-                AddPoint(data.chest);
-                AddPoint(data.spine);
-                AddPoint(data.root);
-                AddPoint(data.lShoulder);
-                AddPoint(data.lUpperArm);
-                AddPoint(data.lElbow);
-                AddPoint(data.lHand);
-                AddPoint(data.rShoulder);
-                AddPoint(data.rUpperArm);
-                AddPoint(data.rElbow);
-                AddPoint(data.rHand);
-                AddPoint(data.lKnee);
-                AddPoint(data.lFoot);
-                AddPoint(data.rKnee);
-                AddPoint(data.rFoot);
-
-                if (validPoints.size() >= 2) {
-                    float minX = 999999.0f, maxX = -999999.0f;
-                    float minY = 999999.0f, maxY = -999999.0f;
-                    float totalZ = 0.0f;
-
-                    ImGuiIO& io = ImGui::GetIO();
-                    float sh = io.DisplaySize.y;
-
-                    for (const auto& pt : validPoints) {
-                        float sx = pt.x;
-                        float sy = sh - pt.y;
-
-                        if (sx < minX) minX = sx;
-                        if (sx > maxX) maxX = sx;
-                        if (sy < minY) minY = sy;
-                        if (sy > maxY) maxY = sy;
-
-                        totalZ += pt.z;
-                    }
-
-                    data.distance = totalZ / (float)validPoints.size();
-                    if (data.distance > fMaxDistance || data.distance < 0.3f) continue;
-
-                    float rawW = maxX - minX;
-                    float rawH = maxY - minY;
-                    if (rawW < 2.0f && rawH < 2.0f) continue;
-
-                    float padX = (data.distance > 0.1f) ? (12.0f / data.distance * 2.0f) : 8.0f;
-                    float padY = (data.distance > 0.1f) ? (8.0f / data.distance * 2.0f) : 6.0f;
-                    if (padX < 4.0f) padX = 4.0f;
-                    if (padX > 24.0f) padX = 24.0f;
-                    if (padY < 4.0f) padY = 4.0f;
-                    if (padY > 20.0f) padY = 20.0f;
-
-                    data.boxMinX = minX - padX;
-                    data.boxMaxX = maxX + padX;
-                    data.boxMinY = minY - padY;
-                    data.boxMaxY = maxY + padY;
-
-                    float boxW = data.boxMaxX - data.boxMinX;
-                    float boxH = data.boxMaxY - data.boxMinY;
-
-                    float sw = io.DisplaySize.x;
-                    if (boxW < 6.0f || boxH < 8.0f || boxW > sw * 0.70f || boxH > sh * 0.85f)
-                        continue;
-
-                    if (data.boxMaxX < -40.0f || data.boxMinX > sw + 40.0f || data.boxMaxY < -40.0f || data.boxMinY > sh + 40.0f)
-                        continue;
-
-                    data.hasBox  = true;
-
-                    if (data.chest.valid) {
-                        data.aimScreenPos = data.chest.screen;
-                    } else if (data.head.valid) {
-                        data.aimScreenPos = data.head.screen;
-                    } else {
-                        data.aimScreenPos = validPoints[0];
-                    }
-
-                    newData.push_back(data);
+            for (const auto* b : allBones) {
+                if (b->valid) {
+                    if (b->screen.x < minX) minX = b->screen.x;
+                    if (b->screen.x > maxX) maxX = b->screen.x;
+                    if (b->screen.y < minY) minY = b->screen.y;
+                    if (b->screen.y > maxY) maxY = b->screen.y;
+                    validCount++;
                 }
             }
+
+            if (validCount >= 2) {
+                float padX = (maxX - minX) * 0.20f;
+                if (padX < 6.0f) padX = 6.0f;
+                float padY = (maxY - minY) * 0.12f;
+                if (padY < 6.0f) padY = 6.0f;
+
+                data.boxMinX = minX - padX;
+                data.boxMaxX = maxX + padX;
+                data.boxMinY = minY - padY;
+                data.boxMaxY = maxY + padY;
+                data.hasBox  = true;
+            }
+
+            // Aimbot target selection point
+            if (iAimbotTarget == 1 && data.head.valid) {
+                data.aimScreenPos = data.head.screen;
+            } else if (data.chest.valid) {
+                data.aimScreenPos = data.chest.screen;
+            } else if (data.root.valid) {
+                data.aimScreenPos = data.root.screen;
+            }
+
+            newData.push_back(data);
         }
 
-        g_ESPData = std::move(newData);
+        g_ESPData = newData;
     }
     __except(EXCEPTION_EXECUTE_HANDLER) {
         g_ESPData.clear();
@@ -1448,233 +1525,207 @@ static void DrawESP(ImGuiIO& io) {
             return;
         }
 
-        ImVec4 col4(color[0], color[1], color[2], color[3] * alpha);
-        ImU32 chamsCol = ImGui::ColorConvertFloat4ToU32(col4);
-        ImU32 glowCol  = ImGui::ColorConvertFloat4ToU32(ImVec4(color[0], color[1], color[2], color[3] * alpha * 0.4f));
+        float boneDist = (a.screen.z + b.screen.z) * 0.5f;
+        float radiusA  = (jointRadius * 80.0f / (a.screen.z + 1.0f));
+        float radiusB  = (jointRadius * 80.0f / (b.screen.z + 1.0f));
+        if (radiusA < 2.0f) radiusA = 2.0f;
+        if (radiusA > 40.0f) radiusA = 40.0f;
+        if (radiusB < 2.0f) radiusB = 2.0f;
+        if (radiusB > 40.0f) radiusB = 40.0f;
 
-        float dist = (a.screen.z + b.screen.z) * 0.5f;
-        float thick = (dist > 0.5f) ? (22.0f / dist * jointRadius) : 6.0f;
-        if (thick < 3.0f) thick = 3.0f;
-        if (thick > 36.0f) thick = 36.0f;
+        float effectiveAlpha = alpha;
+        if (style == 3) {
+            static float pulseTimer = 0.0f;
+            pulseTimer += 0.02f;
+            effectiveAlpha *= (0.60f + 0.40f * sinf(pulseTimer * 3.0f));
+        }
 
-        if (style == 0) { // Solid Flat Silhouette
-            dl->AddLine(p1, p2, chamsCol, thick);
-            dl->AddCircleFilled(p1, thick * 0.5f, chamsCol, 12);
-            dl->AddCircleFilled(p2, thick * 0.5f, chamsCol, 12);
-        } else if (style == 1) { // Translucent Glass
-            dl->AddLine(p1, p2, glowCol, thick + 4.0f);
-            dl->AddLine(p1, p2, chamsCol, thick);
-            dl->AddCircleFilled(p1, thick * 0.5f, chamsCol, 12);
-            dl->AddCircleFilled(p2, thick * 0.5f, chamsCol, 12);
-        } else if (style == 2) { // Wireframe
-            dl->AddLine(p1, p2, chamsCol, thick * 0.5f);
-            dl->AddCircle(p1, thick * 0.6f, chamsCol, 8, 1.5f);
-            dl->AddCircle(p2, thick * 0.6f, chamsCol, 8, 1.5f);
-        } else if (style == 3) { // Neon Pulse
-            float pulse = 0.6f + 0.4f * sinf((float)GetTickCount64() * 0.005f);
-            ImU32 pulseCol = ImGui::ColorConvertFloat4ToU32(ImVec4(color[0], color[1], color[2], color[3] * alpha * pulse));
-            dl->AddLine(p1, p2, pulseCol, thick + 6.0f);
-            dl->AddLine(p1, p2, chamsCol, thick);
-            dl->AddCircleFilled(p1, thick * 0.5f, chamsCol, 12);
-            dl->AddCircleFilled(p2, thick * 0.5f, chamsCol, 12);
+        ImU32 fillCol   = ImGui::ColorConvertFloat4ToU32(ImVec4(color[0], color[1], color[2], effectiveAlpha));
+        ImU32 borderCol = ImGui::ColorConvertFloat4ToU32(ImVec4(color[0] * 1.3f, color[1] * 1.3f, color[2] * 1.3f, 1.0f));
+
+        float dx = p2.x - p1.x;
+        float dy = p2.y - p1.y;
+        float len = sqrtf(dx * dx + dy * dy);
+        if (len < 0.001f) return;
+        float nx = -dy / len;
+        float ny =  dx / len;
+
+        ImVec2 q1(p1.x + nx * radiusA, p1.y + ny * radiusA);
+        ImVec2 q2(p1.x - nx * radiusA, p1.y - ny * radiusA);
+        ImVec2 q3(p2.x - nx * radiusB, p2.y - ny * radiusB);
+        ImVec2 q4(p2.x + nx * radiusB, p2.y + ny * radiusB);
+
+        if (style == 0 || style == 1 || style == 3) {
+            dl->AddQuadFilled(q1, q2, q3, q4, fillCol);
+            dl->AddCircleFilled(p1, radiusA, fillCol);
+            dl->AddCircleFilled(p2, radiusB, fillCol);
+        }
+
+        if (style == 2 || style == 3 || style == 1) {
+            float borderThick = (style == 2) ? 2.0f : 1.2f;
+            dl->AddQuad(q1, q2, q3, q4, borderCol, borderThick);
+            dl->AddCircle(p1, radiusA, borderCol, 0, borderThick);
+            dl->AddCircle(p2, radiusB, borderCol, 0, borderThick);
         }
     };
 
-    for (const auto& p : g_ESPData) {
-        if (!p.hasBox) continue;
-        if (p.isLocal && bIgnoreLocal) continue;
+    auto DrawFullSkeletonChams = [&](const PlayerESPData& data, float* color, float alpha, float jointRadius, int style) {
+        DrawChamsSegment(data.head,      data.chest,     color, alpha, jointRadius * 1.3f, style);
+        DrawChamsSegment(data.chest,     data.spine,     color, alpha, jointRadius * 1.1f, style);
+        DrawChamsSegment(data.spine,     data.root,      color, alpha, jointRadius * 1.0f, style);
+        DrawChamsSegment(data.chest,     data.lShoulder, color, alpha, jointRadius * 0.9f, style);
+        DrawChamsSegment(data.lShoulder, data.lUpperArm, color, alpha, jointRadius * 0.8f, style);
+        DrawChamsSegment(data.lUpperArm, data.lElbow,    color, alpha, jointRadius * 0.8f, style);
+        DrawChamsSegment(data.lElbow,    data.lHand,     color, alpha, jointRadius * 0.7f, style);
+        DrawChamsSegment(data.chest,     data.rShoulder, color, alpha, jointRadius * 0.9f, style);
+        DrawChamsSegment(data.rShoulder, data.rUpperArm, color, alpha, jointRadius * 0.8f, style);
+        DrawChamsSegment(data.rUpperArm, data.rElbow,    color, alpha, jointRadius * 0.8f, style);
+        DrawChamsSegment(data.rElbow,    data.rHand,     color, alpha, jointRadius * 0.7f, style);
+        DrawChamsSegment(data.root,      data.lKnee,     color, alpha, jointRadius * 0.9f, style);
+        DrawChamsSegment(data.lKnee,     data.lFoot,     color, alpha, jointRadius * 0.8f, style);
+        DrawChamsSegment(data.root,      data.rKnee,     color, alpha, jointRadius * 0.9f, style);
+        DrawChamsSegment(data.rKnee,     data.rFoot,     color, alpha, jointRadius * 0.8f, style);
+    };
 
-        float* pCol = p.isEnemy ? colEnemy : colTeam;
+    // Draw FOV circles
+    float cx = sw * 0.5f;
+    float cy = sh * 0.5f;
 
-        ImU32 colMain = MakeGlowColor(pCol, 1.0f);
-        ImU32 colTrac = MakeGlowColor(colTracers, 1.0f);
+    if (bEnableAimbot && bDrawAimbotFOV && aimbotFOV > 0.0f) {
+        dl->AddCircle(ImVec2(cx, cy), aimbotFOV, IM_COL32(0, 230, 255, 120), 64, 1.5f);
+        if (bEnableGlow) {
+            dl->AddCircle(ImVec2(cx, cy), aimbotFOV, IM_COL32(0, 230, 255, 35), 64, 4.0f);
+        }
+    }
 
-        // 0. Customizable Solid / Glass / Wireframe / Pulse Chams
+    if (bEnableSilentAim && bDrawSilentAimFOV && !bSilentAimFull360 && fSilentAimFOV > 0.0f) {
+        dl->AddCircle(ImVec2(cx, cy), fSilentAimFOV, IM_COL32(255, 80, 120, 140), 64, 1.5f);
+        if (bEnableGlow) {
+            dl->AddCircle(ImVec2(cx, cy), fSilentAimFOV, IM_COL32(255, 80, 120, 40), 64, 4.0f);
+        }
+    }
+
+    for (const auto& data : g_ESPData) {
+        float* primaryCol = data.isEnemy ? colEnemy : colTeam;
+
+        // Chams
         if (bEnableChams) {
-            float* chamsCol = p.isEnemy ? colChamsEnemyVis : colChamsTeamVis;
-
-            DrawChamsSegment(p.head, p.chest, chamsCol, fChamsAlpha, fChamsJointSize, iChamsStyle);
-            DrawChamsSegment(p.chest, p.spine, chamsCol, fChamsAlpha, fChamsJointSize, iChamsStyle);
-            DrawChamsSegment(p.spine, p.root, chamsCol, fChamsAlpha, fChamsJointSize, iChamsStyle);
-
-            DrawChamsSegment(p.chest, p.lShoulder, chamsCol, fChamsAlpha, fChamsJointSize, iChamsStyle);
-            DrawChamsSegment(p.lShoulder, p.lUpperArm, chamsCol, fChamsAlpha, fChamsJointSize, iChamsStyle);
-            DrawChamsSegment(p.lUpperArm, p.lElbow, chamsCol, fChamsAlpha, fChamsJointSize, iChamsStyle);
-            DrawChamsSegment(p.lElbow, p.lHand, chamsCol, fChamsAlpha, fChamsJointSize, iChamsStyle);
-
-            DrawChamsSegment(p.chest, p.rShoulder, chamsCol, fChamsAlpha, fChamsJointSize, iChamsStyle);
-            DrawChamsSegment(p.rShoulder, p.rUpperArm, chamsCol, fChamsAlpha, fChamsJointSize, iChamsStyle);
-            DrawChamsSegment(p.rUpperArm, p.rElbow, chamsCol, fChamsAlpha, fChamsJointSize, iChamsStyle);
-            DrawChamsSegment(p.rElbow, p.rHand, chamsCol, fChamsAlpha, fChamsJointSize, iChamsStyle);
-
-            DrawChamsSegment(p.root, p.lKnee, chamsCol, fChamsAlpha, fChamsJointSize, iChamsStyle);
-            DrawChamsSegment(p.lKnee, p.lFoot, chamsCol, fChamsAlpha, fChamsJointSize, iChamsStyle);
-
-            DrawChamsSegment(p.root, p.rKnee, chamsCol, fChamsAlpha, fChamsJointSize, iChamsStyle);
-            DrawChamsSegment(p.rKnee, p.rFoot, chamsCol, fChamsAlpha, fChamsJointSize, iChamsStyle);
+            float* chamsCol = data.isEnemy ? colChamsEnemyVis : colChamsTeamVis;
+            DrawFullSkeletonChams(data, chamsCol, fChamsAlpha, fChamsJointSize, iChamsStyle);
         }
 
-        // 1. Dynamic Skeleton ESP
+        // Skeletons
         if (bDrawSkeleton) {
-            DrawBoneLine(p.head, p.chest, colSkeleton, fSkeletonThickness + 0.5f);
-            DrawBoneLine(p.chest, p.spine, colSkeleton, fSkeletonThickness + 0.5f);
-            DrawBoneLine(p.spine, p.root, colSkeleton, fSkeletonThickness + 0.5f);
-
-            // Left Arm
-            DrawBoneLine(p.chest, p.lShoulder, colSkeleton, fSkeletonThickness);
-            DrawBoneLine(p.lShoulder, p.lUpperArm, colSkeleton, fSkeletonThickness);
-            DrawBoneLine(p.lUpperArm, p.lElbow, colSkeleton, fSkeletonThickness);
-            DrawBoneLine(p.lElbow, p.lHand, colSkeleton, fSkeletonThickness);
-
-            // Right Arm
-            DrawBoneLine(p.chest, p.rShoulder, colSkeleton, fSkeletonThickness);
-            DrawBoneLine(p.rShoulder, p.rUpperArm, colSkeleton, fSkeletonThickness);
-            DrawBoneLine(p.rUpperArm, p.rElbow, colSkeleton, fSkeletonThickness);
-            DrawBoneLine(p.rElbow, p.rHand, colSkeleton, fSkeletonThickness);
-
-            // Left Leg
-            DrawBoneLine(p.root, p.lKnee, colSkeleton, fSkeletonThickness);
-            DrawBoneLine(p.lKnee, p.lFoot, colSkeleton, fSkeletonThickness);
-
-            // Right Leg
-            DrawBoneLine(p.root, p.rKnee, colSkeleton, fSkeletonThickness);
-            DrawBoneLine(p.rKnee, p.rFoot, colSkeleton, fSkeletonThickness);
+            DrawBoneLine(data.head,      data.chest,     colSkeleton, fSkeletonThickness);
+            DrawBoneLine(data.chest,     data.spine,     colSkeleton, fSkeletonThickness);
+            DrawBoneLine(data.spine,     data.root,      colSkeleton, fSkeletonThickness);
+            DrawBoneLine(data.chest,     data.lShoulder, colSkeleton, fSkeletonThickness);
+            DrawBoneLine(data.lShoulder, data.lUpperArm, colSkeleton, fSkeletonThickness);
+            DrawBoneLine(data.lUpperArm, data.lElbow,    colSkeleton, fSkeletonThickness);
+            DrawBoneLine(data.lElbow,    data.lHand,     colSkeleton, fSkeletonThickness);
+            DrawBoneLine(data.chest,     data.rShoulder, colSkeleton, fSkeletonThickness);
+            DrawBoneLine(data.rShoulder, data.rUpperArm, colSkeleton, fSkeletonThickness);
+            DrawBoneLine(data.rUpperArm, data.rElbow,    colSkeleton, fSkeletonThickness);
+            DrawBoneLine(data.rElbow,    data.rHand,     colSkeleton, fSkeletonThickness);
+            DrawBoneLine(data.root,      data.lKnee,     colSkeleton, fSkeletonThickness);
+            DrawBoneLine(data.lKnee,     data.lFoot,     colSkeleton, fSkeletonThickness);
+            DrawBoneLine(data.root,      data.rKnee,     colSkeleton, fSkeletonThickness);
+            DrawBoneLine(data.rKnee,     data.rFoot,     colSkeleton, fSkeletonThickness);
         }
 
-        // 2. Head Circle ESP
-        if (bDrawHeadCircle && p.head.valid) {
-            float headRadius = (p.distance > 0.1f) ? (18.0f / p.distance * fHeadCircleSize) : 8.0f;
-            if (headRadius < 3.0f) headRadius = 3.0f;
-            if (headRadius > 35.0f) headRadius = 35.0f;
-
-            ImVec2 headPos(p.head.screen.x, sh - p.head.screen.y);
+        // Head Circle
+        if (bDrawHeadCircle && data.head.valid) {
+            ImVec2 headCenter(data.head.screen.x, sh - data.head.screen.y);
+            float radius = (18.0f * fHeadCircleSize) / (data.head.screen.z + 1.0f);
+            if (radius < 2.5f)  radius = 2.5f;
+            if (radius > 45.0f) radius = 45.0f;
 
             if (bEnableGlow) {
-                ImU32 glowHead1 = MakeGlowColor(colHeadCircle, 0.15f * fGlowIntensity);
-                ImU32 glowHead2 = MakeGlowColor(colHeadCircle, 0.35f * fGlowIntensity);
-                dl->AddCircle(headPos, headRadius + 3.0f, glowHead1, 16, 3.0f);
-                dl->AddCircle(headPos, headRadius + 1.5f, glowHead2, 16, 2.0f);
+                ImU32 glowColOuter = MakeGlowColor(colHeadCircle, 0.20f * fGlowIntensity);
+                ImU32 glowColMid   = MakeGlowColor(colHeadCircle, 0.40f * fGlowIntensity);
+                dl->AddCircle(headCenter, radius, glowColOuter, 32, fSkeletonThickness + 4.0f);
+                dl->AddCircle(headCenter, radius, glowColMid,   32, fSkeletonThickness + 2.0f);
             }
-
-            ImU32 colHead = MakeGlowColor(colHeadCircle, 1.0f);
-            dl->AddCircle(headPos, headRadius, colHead, 16, 1.8f);
+            ImU32 coreCol = MakeGlowColor(colHeadCircle, 1.0f);
+            dl->AddCircle(headCenter, radius, coreCol, 32, fSkeletonThickness);
         }
 
-        // 3. Dynamic 2D Hitbox Bounding Box
-        if (bDrawBoxes) {
-            ImVec2 bMin(p.boxMinX, p.boxMinY);
-            ImVec2 bMax(p.boxMaxX, p.boxMaxY);
+        // Bounding Boxes
+        if (bDrawBoxes && data.hasBox) {
+            ImVec2 bMin(data.boxMinX, sh - data.boxMaxY);
+            ImVec2 bMax(data.boxMaxX, sh - data.boxMinY);
 
             if (bEnableGlow) {
-                ImU32 glowBoxOuter = MakeGlowColor(pCol, 0.15f * fGlowIntensity);
-                ImU32 glowBoxMid   = MakeGlowColor(pCol, 0.30f * fGlowIntensity);
-                dl->AddRect(ImVec2(bMin.x - 3.0f, bMin.y - 3.0f), ImVec2(bMax.x + 3.0f, bMax.y + 3.0f), glowBoxOuter, 4.0f, 0, fBoxThickness + 3.0f);
-                dl->AddRect(ImVec2(bMin.x - 1.5f, bMin.y - 1.5f), ImVec2(bMax.x + 1.5f, bMax.y + 1.5f), glowBoxMid,   3.0f, 0, fBoxThickness + 1.5f);
+                ImU32 glowColOuter = MakeGlowColor(primaryCol, 0.15f * fGlowIntensity);
+                ImU32 glowColMid   = MakeGlowColor(primaryCol, 0.30f * fGlowIntensity);
+                dl->AddRect(bMin, bMax, glowColOuter, 2.0f, 0, fBoxThickness + 4.0f);
+                dl->AddRect(bMin, bMax, glowColMid,   2.0f, 0, fBoxThickness + 2.0f);
             }
-
-            dl->AddRect(bMin, bMax, colMain, 2.0f, 0, fBoxThickness);
+            ImU32 coreCol = MakeGlowColor(primaryCol, 1.0f);
+            dl->AddRect(bMin, bMax, coreCol, 2.0f, 0, fBoxThickness);
         }
 
-        // 4. Tracers (Snaplines)
-        if (bDrawTracers) {
-            ImVec2 originPos;
-            if (iTracerOrigin == 0)      originPos = ImVec2(sw * 0.5f, sh);
-            else if (iTracerOrigin == 1) originPos = ImVec2(sw * 0.5f, sh * 0.5f);
-            else                         originPos = ImVec2(sw * 0.5f, 0.0f);
+        // Tracers
+        if (bDrawTracers && (data.root.valid || data.chest.valid)) {
+            const BonePoint& targetBone = data.root.valid ? data.root : data.chest;
+            ImVec2 startPos;
+            if (iTracerOrigin == 0)      startPos = ImVec2(cx, sh);
+            else if (iTracerOrigin == 1) startPos = ImVec2(cx, cy);
+            else                         startPos = ImVec2(cx, 0.0f);
 
-            ImVec2 targetPos;
-            if (p.chest.valid) {
-                targetPos = ImVec2(p.chest.screen.x, sh - p.chest.screen.y);
-            } else {
-                targetPos = ImVec2((p.boxMinX + p.boxMaxX) * 0.5f, p.boxMaxY);
-            }
+            ImVec2 endPos(targetBone.screen.x, sh - targetBone.screen.y);
 
             if (bEnableGlow) {
-                ImU32 glowTracOuter = MakeGlowColor(colTracers, 0.20f * fGlowIntensity);
-                dl->AddLine(originPos, targetPos, glowTracOuter, fTracerThickness + 2.5f);
+                ImU32 glowColOuter = MakeGlowColor(colTracers, 0.15f * fGlowIntensity);
+                ImU32 glowColMid   = MakeGlowColor(colTracers, 0.30f * fGlowIntensity);
+                dl->AddLine(startPos, endPos, glowColOuter, fTracerThickness + 3.0f);
+                dl->AddLine(startPos, endPos, glowColMid,   fTracerThickness + 1.5f);
+            }
+            ImU32 coreCol = MakeGlowColor(colTracers, 0.85f);
+            dl->AddLine(startPos, endPos, coreCol, fTracerThickness);
+        }
+
+        // Health Bar & Info Text
+        if ((bDrawHealthBar || bDrawInfoText) && data.hasBox) {
+            float boxH = (data.boxMaxY - data.boxMinY);
+            float boxTopY = sh - data.boxMaxY;
+
+            if (bDrawHealthBar) {
+                float barW = 4.0f;
+                float barX = data.boxMinX - barW - 3.0f;
+                float hpRatio = (data.maxHp > 0) ? ((float)data.hp / (float)data.maxHp) : 1.0f;
+                if (hpRatio < 0.0f) hpRatio = 0.0f;
+                if (hpRatio > 1.0f) hpRatio = 1.0f;
+
+                ImU32 barBg = IM_COL32(20, 20, 25, 200);
+                dl->AddRectFilled(ImVec2(barX, boxTopY), ImVec2(barX + barW, boxTopY + boxH), barBg);
+
+                ImU32 hpColor;
+                if (hpRatio > 0.60f)      hpColor = IM_COL32(50, 220, 90, 255);
+                else if (hpRatio > 0.25f) hpColor = IM_COL32(240, 180, 30, 255);
+                else                      hpColor = IM_COL32(240, 45, 45, 255);
+
+                float filledH = boxH * hpRatio;
+                dl->AddRectFilled(ImVec2(barX, boxTopY + (boxH - filledH)), ImVec2(barX + barW, boxTopY + boxH), hpColor);
             }
 
-            dl->AddLine(originPos, targetPos, colTrac, fTracerThickness);
+            if (bDrawInfoText) {
+                char textBuf[128];
+                snprintf(textBuf, sizeof(textBuf), "%s | %dm | %d HP",
+                         data.isEnemy ? "ENEMY" : "TEAM",
+                         (int)data.distance, data.hp);
+
+                ImVec2 textSize = ImGui::CalcTextSize(textBuf);
+                float textX = data.boxMinX + ((data.boxMaxX - data.boxMinX) - textSize.x) * 0.5f;
+                float textY = boxTopY - textSize.y - 3.0f;
+
+                dl->AddRectFilled(ImVec2(textX - 3.0f, textY - 1.0f),
+                                  ImVec2(textX + textSize.x + 3.0f, textY + textSize.y + 1.0f),
+                                  IM_COL32(10, 12, 18, 190), 3.0f);
+
+                dl->AddText(ImVec2(textX, textY), MakeGlowColor(primaryCol, 1.0f), textBuf);
+            }
         }
-
-        // 5. Health Bar
-        if (bDrawHealthBar && p.maxHp > 0) {
-            float ratio = (float)p.hp / (float)p.maxHp;
-            if (ratio < 0.0f) ratio = 0.0f;
-            if (ratio > 1.0f) ratio = 1.0f;
-
-            float boxH   = p.boxMaxY - p.boxMinY;
-            float barX   = p.boxMinX - 7.0f;
-            float barTop = p.boxMinY;
-            float barBot = p.boxMaxY;
-
-            dl->AddRectFilled(
-                ImVec2(barX - 4.0f, barTop),
-                ImVec2(barX, barBot),
-                IM_COL32(10, 12, 16, 200)
-            );
-
-            ImU32 hpCol = ratio > 0.6f
-                ? IM_COL32(50,  230, 80,  255)
-                : ratio > 0.3f
-                    ? IM_COL32(250, 210, 40,  255)
-                    : IM_COL32(255, 45,  45,  255);
-
-            dl->AddRectFilled(
-                ImVec2(barX - 4.0f, barBot - boxH * ratio),
-                ImVec2(barX, barBot),
-                hpCol
-            );
-        }
-
-        // 6. Distance & Info Text
-        if (bDrawInfoText) {
-            char buf[48];
-            snprintf(buf, sizeof(buf), "%s | %d HP [%.0fm]", p.isEnemy ? "ENEMY" : "TEAM", p.hp, p.distance);
-
-            dl->AddText(ImVec2(p.boxMinX + 1.0f, p.boxMinY - 17.0f + 1.0f), IM_COL32(0, 0, 0, 220), buf);
-            dl->AddText(ImVec2(p.boxMinX, p.boxMinY - 17.0f), colMain, buf);
-        }
-    }
-
-    // Draw Aimbot FOV circle if enabled
-    if (bEnableAimbot && bDrawAimbotFOV) {
-        if (bEnableGlow) {
-            dl->AddCircle(
-                ImVec2(sw * 0.5f, sh * 0.5f),
-                aimbotFOV,
-                IM_COL32(120, 180, 255, (int)(45 * fGlowIntensity)),
-                64,
-                3.0f
-            );
-        }
-        dl->AddCircle(
-            ImVec2(sw * 0.5f, sh * 0.5f),
-            aimbotFOV,
-            IM_COL32(255, 255, 255, 120),
-            64,
-            1.5f
-        );
-    }
-
-    // Draw Silent Aim FOV circle if enabled
-    if (bEnableSilentAim && bDrawSilentAimFOV && !bSilentAimFull360) {
-        if (bEnableGlow) {
-            dl->AddCircle(
-                ImVec2(sw * 0.5f, sh * 0.5f),
-                fSilentAimFOV,
-                IM_COL32(255, 90, 140, (int)(45 * fGlowIntensity)),
-                64,
-                3.0f
-            );
-        }
-        dl->AddCircle(
-            ImVec2(sw * 0.5f, sh * 0.5f),
-            fSilentAimFOV,
-            IM_COL32(255, 120, 170, 140),
-            64,
-            1.5f
-        );
     }
 }
 
@@ -1688,23 +1739,16 @@ static void DoAimbot(ImGuiIO& io) {
     float cy = io.DisplaySize.y * 0.5f;
     float sh = io.DisplaySize.y;
 
-    float bestDist = aimbotFOV;
-    float tgtX = -1.0f, tgtY = -1.0f;
+    float bestDist = (aimbotFOV > 0.0f) ? aimbotFOV : 99999.0f;
+    float tgtX = 0.0f, tgtY = 0.0f;
 
-    for (const auto& p : g_ESPData) {
-        if (!p.hasBox || (p.isLocal && bIgnoreLocal))
-            continue;
-        if (bIgnoreDead && (p.isDead || p.hp <= 0))
-            continue;
-        if (bIgnoreTeammates && !p.isEnemy)
-            continue;
+    for (const auto& data : g_ESPData) {
+        if (!data.isEnemy) continue;
+        if (data.isDead || data.hp <= 0) continue;
+        if (data.aimScreenPos.z <= 0.5f) continue;
 
-        Vector3 targetBone = (iAimbotTarget == 1 && p.head.valid) ? p.head.screen : p.aimScreenPos;
-        if (targetBone.z <= 0.5f || std::isnan(targetBone.x) || std::isnan(targetBone.y))
-            continue;
-
-        float sx = targetBone.x;
-        float sy = sh - targetBone.y;
+        float sx = data.aimScreenPos.x;
+        float sy = sh - data.aimScreenPos.y;
 
         float dist = sqrtf((sx - cx) * (sx - cx) + (sy - cy) * (sy - cy));
         if (dist < bestDist) {
@@ -1732,30 +1776,7 @@ static void DoAimbot(ImGuiIO& io) {
 
 // ─── Silent Aim Hook & Logic (100% Hit Any Shot Anywhere) ────────────────────
 static bool GetSilentAimTargetPosition(Vector3* outTargetPos) {
-    if (!outTargetPos || !g_PlayerClass) return false;
-
-    Il2CppArray* arr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
-    if (!arr) return false;
-
-    uintptr_t count = *(uintptr_t*)((char*)arr + 0x18);
-    void** items = (void**)((char*)arr + 0x20);
-
-    void* localPlayer = nullptr;
-    bool localAwayTeam = false;
-    bool foundLocal = false;
-
-    for (uintptr_t i = 0; i < count; i++) {
-        void* p = items[i];
-        if (p && g_Il2Cpp.IsLocalPlayer(p)) {
-            localPlayer = p;
-            foundLocal = true;
-            if (g_PlayerMovementClass) {
-                void* pm = g_Il2Cpp.GetComponent(p, g_PlayerMovementClass);
-                if (pm) localAwayTeam = *(bool*)((char*)pm + 0x1C4);
-            }
-            break;
-        }
-    }
+    if (!outTargetPos) return false;
 
     void* activeCam = GetCurrentGameCamera();
     ImGuiIO& io = ImGui::GetIO();
@@ -1767,59 +1788,23 @@ static bool GetSilentAimTargetPosition(Vector3* outTargetPos) {
     Vector3 bestPos{};
     bool found = false;
 
-    for (uintptr_t i = 0; i < count; i++) {
-        void* p = items[i];
-        if (!p || p == localPlayer || g_Il2Cpp.IsLocalPlayer(p)) continue;
-        if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(p) || !g_Il2Cpp.IsSpawned(p)) continue;
+    for (const auto& pl : g_CachedPlayers) {
+        if (!pl.isEnemy || pl.isDead || pl.hp <= 0) continue;
+        if (!IsValidUnityObj(pl.playerObj)) continue;
 
-        // Health / Dead check
-        int enemyHp = 100;
-        if (g_HealthClass) {
-            void* hComp = g_Il2Cpp.GetComponent(p, g_HealthClass);
-            if (hComp) {
-                if (g_IsDeadMethod) {
-                    void* exc = nullptr;
-                    Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(g_IsDeadMethod, hComp, nullptr, &exc);
-                    if (res && !exc && *(bool*)((char*)res + 0x10)) continue;
-                }
-                if (g_GetCurrentHealth) {
-                    void* exc = nullptr;
-                    Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(g_GetCurrentHealth, hComp, nullptr, &exc);
-                    if (res && !exc) enemyHp = *(int*)((char*)res + 0x10);
-                    if (enemyHp <= 0) continue;
-                }
-            }
-        }
-
-        // Team check
-        bool enemyAwayTeam = false;
-        void* enemyPM = g_PlayerMovementClass ? g_Il2Cpp.GetComponent(p, g_PlayerMovementClass) : nullptr;
-        if (enemyPM) {
-            enemyAwayTeam = *(bool*)((char*)enemyPM + 0x1C4);
-        } else if (g_SharedRefClass) {
-            void* sr = g_Il2Cpp.GetComponent(p, g_SharedRefClass);
-            if (sr) enemyAwayTeam = *(bool*)((char*)sr + 0x108);
-        }
-
-        if (bIgnoreTeammates && foundLocal && (enemyAwayTeam == localAwayTeam)) continue;
-
-        // Target bone position
-        void* chestRb = *(void**)((char*)p + 0x170);
-        void* rootRb  = *(void**)((char*)p + 0x108);
-        void* targetRb = chestRb ? chestRb : rootRb;
-        if (!targetRb) continue;
+        void* targetRb = pl.chestRb ? pl.chestRb : pl.rootRb;
+        if (!targetRb || !IsValidUnityObj(targetRb)) continue;
 
         Vector3 bonePos{};
         if (!g_Il2Cpp.GetRigidbodyPosition(targetRb, &bonePos)) continue;
         if (fabsf(bonePos.x) < 0.001f && fabsf(bonePos.y) < 0.001f && fabsf(bonePos.z) < 0.001f) continue;
 
         if (iSilentAimTarget == 1) {
-            // Head position (Chest + 0.40m up)
-            bonePos = bonePos + Vector3(0.0f, 0.40f, 0.0f);
+            bonePos = bonePos + Vector3(0.0f, 0.40f, 0.0f); // Head
         }
 
         float score = 0.0f;
-        if (!bSilentAimFull360 && activeCam) {
+        if (!bSilentAimFull360 && activeCam && IsValidUnityObj(activeCam)) {
             Vector3 screenPos{};
             if (!g_Il2Cpp.WorldToScreen(activeCam, bonePos, &screenPos) || screenPos.z <= 0.3f) {
                 continue;
@@ -1830,7 +1815,6 @@ static bool GetSilentAimTargetPosition(Vector3* outTargetPos) {
             if (distFromCenter > fSilentAimFOV) continue;
             score = distFromCenter;
         } else {
-            // Full 360 map aimbot: prioritize nearest target
             score = 1.0f;
         }
 
@@ -1852,437 +1836,222 @@ typedef void (*CMDShoot_t)(void* __this, Il2CppArray* _cameraPosition, Il2CppArr
 CMDShoot_t oCMDShoot = nullptr;
 
 void hkCMDShoot(void* __this, Il2CppArray* _cameraPosition, Il2CppArray* _cameraForward, uint32_t tick, const MethodInfo* method) {
+    // Silent Aim: only redirect _cameraForward; always call original with valid arrays
+    Il2CppArray* outPos = _cameraPosition;
+    Il2CppArray* outFwd = _cameraForward;
+
     __try {
-        if (bEnableSilentAim && _cameraPosition && _cameraForward) {
+        if (bEnableSilentAim && outPos && outFwd && IsValidUnityObj(__this)) {
             Vector3 targetWorldPos{};
             if (GetSilentAimTargetPosition(&targetWorldPos)) {
+                // Get camera origin from scene camera (safer than invoking UnpackShort on network data)
                 Vector3 camPos{};
-                if (g_UnpackShortMethod) {
-                    void* args[1] = { _cameraPosition };
-                    void* exc = nullptr;
-                    Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(g_UnpackShortMethod, nullptr, args, &exc);
-                    if (!exc && res) {
-                        camPos = *(Vector3*)((char*)res + 0x10);
-                    }
+                void* activeCam = GetCurrentGameCamera();
+                if (activeCam && IsValidUnityObj(activeCam)) {
+                    void* camTr = g_Il2Cpp.GetComponentTransform(activeCam);
+                    if (camTr && IsValidUnityObj(camTr)) g_Il2Cpp.GetTransformPosition(camTr, &camPos);
                 }
 
-                if (camPos.LengthSq() < 0.0001f) {
-                    void* activeCam = GetCurrentGameCamera();
-                    if (activeCam) {
-                        void* camTr = g_Il2Cpp.GetComponentTransform(activeCam);
-                        if (camTr) g_Il2Cpp.GetTransformPosition(camTr, &camPos);
-                    }
-                }
-
-                Vector3 aimDir = targetWorldPos - camPos;
-                float len = aimDir.Length();
-                if (len > 0.001f) {
-                    aimDir = aimDir * (1.0f / len);
-
-                    if (g_PackDirectionMethod) {
-                        void* args[1] = { &aimDir };
-                        void* exc = nullptr;
-                        Il2CppObject* packedArr = g_Il2Cpp.il2cpp_runtime_invoke(g_PackDirectionMethod, nullptr, args, &exc);
-                        if (!exc && packedArr) {
-                            _cameraForward = (Il2CppArray*)packedArr;
+                if (camPos.LengthSq() > 0.0001f) {
+                    Vector3 aimDir = targetWorldPos - camPos;
+                    float len = aimDir.Length();
+                    if (len > 0.001f) {
+                        aimDir = aimDir * (1.0f / len);
+                        if (g_PackDirectionMethod) {
+                            void* args[1] = { &aimDir };
+                            void* exc = nullptr;
+                            Il2CppObject* packedArr = g_Il2Cpp.il2cpp_runtime_invoke(g_PackDirectionMethod, nullptr, args, &exc);
+                            // Only use packed result if it is a valid, non-null array object
+                            if (!exc && packedArr && IsValidMemPtr(packedArr, 0x20)) {
+                                // Pin the packed array from GC during this call by keeping it on stack
+                                outFwd = (Il2CppArray*)packedArr;
+                            }
                         }
                     }
                 }
             }
         }
     }
-    __except(EXCEPTION_EXECUTE_HANDLER) {}
+    __except(EXCEPTION_EXECUTE_HANDLER) {
+        // On any error revert to original arrays
+        outPos = _cameraPosition;
+        outFwd = _cameraForward;
+    }
 
-    if (oCMDShoot && __this) {
+    if (oCMDShoot && __this && IsValidUnityObj(__this)
+        && outPos && IsValidMemPtr(outPos, 0x20)
+        && outFwd && IsValidMemPtr(outFwd, 0x20)) {
+        oCMDShoot(__this, outPos, outFwd, tick, method);
+    } else if (oCMDShoot && __this && IsValidUnityObj(__this)) {
         oCMDShoot(__this, _cameraPosition, _cameraForward, tick, method);
     }
 }
 
-
 // ─── Instant Teleportation & Auto-Shoot Kill Aura (Auto-Cycle Targets) ───────
 static uintptr_t g_CurrentTeleportTarget = 0;
-static ULONGLONG g_LastTeleShootTime = 0;
-static ULONGLONG g_LastTeleportTime  = 0;  // Rate-limiter to prevent PhysX crash
+static ULONGLONG g_LastTeleShootTime    = 0;
+static ULONGLONG g_LastTeleportTime     = 0;
 
 static void DoTeleportKill(ImGuiIO& io) {
     if (g_ShowMenu) return;
     if (!bEnableTeleportKill) return;
     if (bTeleportHoldKey && !IsKeyActive(iTeleportKey)) return;
-    if (!g_PlayerClass) return;
+    if (!g_HasLocalPlayer) return;
 
     ULONGLONG now = GetTickCount64();
-
-    // ─── CRITICAL FIX: Rate-limit teleportation to prevent PhysX crash ───
-    // Without this throttle, we call MoveRigidbody 60+ times per second which
-    // overwhelms Unity's physics step and causes 0xC0000005 in UnityPlayer.dll
-    if (now - g_LastTeleportTime < 250) return;
+    if (now - g_LastTeleportTime < 200) return; // Rate-limit to prevent PhysX engine lockup
     g_LastTeleportTime = now;
 
     __try {
-        Il2CppArray* arr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
-        if (!arr) return;
-
-        uintptr_t count = *(uintptr_t*)((char*)arr + 0x18);
-        void** items = (void**)((char*)arr + 0x20);
-
-        void* localPlayer = nullptr;
-        void* localPlayerMovement = nullptr;
-        bool localAwayTeam = false;
-        bool foundLocal = false;
-
-        for (uintptr_t i = 0; i < count; i++) {
-            void* p = items[i];
-            if (p && g_Il2Cpp.IsLocalPlayer(p)) {
-                localPlayer = p;
-                foundLocal = true;
-                if (g_PlayerMovementClass) {
-                    localPlayerMovement = g_Il2Cpp.GetComponent(p, g_PlayerMovementClass);
-                    if (localPlayerMovement) {
-                        localAwayTeam = *(bool*)((char*)localPlayerMovement + 0x1C4);
-                    }
-                }
-                break;
-            }
+        if (!IsValidUnityObj(g_LocalPlayerInfo.playerObj) || g_LocalPlayerInfo.isDead) {
+            g_CurrentTeleportTarget = 0;
+            return;
         }
 
-        if (!localPlayer || !foundLocal) return;
+        void* localRootRb = g_LocalPlayerInfo.rootRb ? g_LocalPlayerInfo.rootRb : g_LocalPlayerInfo.chestRb;
+        if (!localRootRb || !IsValidUnityObj(localRootRb)) return;
 
-        // CRITICAL: Don't teleport if local player is dead or not yet spawned
-        if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(localPlayer)) return;
-        if (!g_Il2Cpp.IsSpawned(localPlayer)) return;
+        Vector3 localRootPos{};
+        if (!g_Il2Cpp.GetRigidbodyPosition(localRootRb, &localRootPos)) return;
 
-        // Check if local player is dead
-        if (g_HealthClass) {
-            void* hComp = g_Il2Cpp.GetComponent(localPlayer, g_HealthClass);
-            if (hComp && g_IsDeadMethod) {
-                void* exc = nullptr;
-                Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(g_IsDeadMethod, hComp, nullptr, &exc);
-                if (res && !exc && *(bool*)((char*)res + 0x10)) {
-                    g_CurrentTeleportTarget = 0;  // Reset target on death
-                    return;
+        const CachedPlayerInfo* chosenEnemy = nullptr;
+        for (const auto& pl : g_CachedPlayers) {
+            if (pl.isEnemy && !pl.isDead && pl.hp > 0 && IsValidUnityObj(pl.playerObj)) {
+                if (g_CurrentTeleportTarget != 0 && (uintptr_t)pl.playerObj == g_CurrentTeleportTarget) {
+                    chosenEnemy = &pl;
+                    break;
                 }
             }
         }
 
-        // Helper lambda to check if a player pointer is valid and alive
-        auto IsValidAliveEnemy = [&](void* p, int& outHp, Vector3& outPos, Vector3& outFwd) -> bool {
-            if (!p || p == localPlayer || g_Il2Cpp.IsLocalPlayer(p)) return false;
-            if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(p) || !g_Il2Cpp.IsSpawned(p)) return false;
+        if (!chosenEnemy) {
+            float closestDist = 99999.0f;
+            for (const auto& pl : g_CachedPlayers) {
+                if (!pl.isEnemy || pl.isDead || pl.hp <= 0 || !IsValidUnityObj(pl.playerObj)) continue;
+                void* targetRb = pl.chestRb ? pl.chestRb : pl.rootRb;
+                if (!targetRb || !IsValidUnityObj(targetRb)) continue;
 
-            outHp = 100;
-            if (g_HealthClass) {
-                void* hComp = g_Il2Cpp.GetComponent(p, g_HealthClass);
-                if (hComp) {
-                    if (g_IsDeadMethod) {
-                        void* exc = nullptr;
-                        Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(g_IsDeadMethod, hComp, nullptr, &exc);
-                        if (res && !exc && *(bool*)((char*)res + 0x10)) return false;
-                    }
-                    if (g_GetCurrentHealth) {
-                        void* exc = nullptr;
-                        Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(g_GetCurrentHealth, hComp, nullptr, &exc);
-                        if (res && !exc) outHp = *(int*)((char*)res + 0x10);
-                        if (outHp <= 0) return false;
+                Vector3 tPos{};
+                if (g_Il2Cpp.GetRigidbodyPosition(targetRb, &tPos)) {
+                    float d = (tPos - localRootPos).Length();
+                    if (d < closestDist) {
+                        closestDist = d;
+                        chosenEnemy = &pl;
+                        g_CurrentTeleportTarget = (uintptr_t)pl.playerObj;
                     }
                 }
             }
+        }
 
-            bool enemyAwayTeam = false;
-            void* enemyPM = g_PlayerMovementClass ? g_Il2Cpp.GetComponent(p, g_PlayerMovementClass) : nullptr;
-            if (enemyPM) {
-                enemyAwayTeam = *(bool*)((char*)enemyPM + 0x1C4);
-            } else if (g_SharedRefClass) {
-                void* sr = g_Il2Cpp.GetComponent(p, g_SharedRefClass);
-                if (sr) enemyAwayTeam = *(bool*)((char*)sr + 0x108);
-            }
+        if (!chosenEnemy) {
+            g_CurrentTeleportTarget = 0;
+            return;
+        }
 
-            if (bIgnoreTeammates && foundLocal && (enemyAwayTeam == localAwayTeam)) return false;
+        void* enemyRb = chosenEnemy->chestRb ? chosenEnemy->chestRb : chosenEnemy->rootRb;
+        if (!enemyRb || !IsValidUnityObj(enemyRb)) return;
 
-            void* chestRb = *(void**)((char*)p + 0x170);
-            void* rootRb  = *(void**)((char*)p + 0x108);
-            void* targetRb = chestRb ? chestRb : rootRb;
-            if (!targetRb) return false;
+        Vector3 enemyPos{};
+        if (!g_Il2Cpp.GetRigidbodyPosition(enemyRb, &enemyPos)) return;
 
-            if (!g_Il2Cpp.GetRigidbodyPosition(targetRb, &outPos)) return false;
-            if (fabsf(outPos.x) < 0.001f && fabsf(outPos.y) < 0.001f && fabsf(outPos.z) < 0.001f) return false;
+        Vector3 enemyFwd(0.0f, 0.0f, 1.0f);
+        if (chosenEnemy->playerMovement && IsValidUnityObj(chosenEnemy->playerMovement)) {
+            void* orientTr = *(void**)((char*)chosenEnemy->playerMovement + 0x100);
+            if (orientTr && IsValidUnityObj(orientTr)) g_Il2Cpp.GetTransformForward(orientTr, &enemyFwd);
+        }
 
-            outFwd = Vector3(0.0f, 0.0f, 1.0f);
-            if (enemyPM) {
-                void* orientTr = *(void**)((char*)enemyPM + 0x100);
-                if (orientTr) g_Il2Cpp.GetTransformForward(orientTr, &outFwd);
-            }
+        Vector3 destPos = enemyPos - (enemyFwd * fTeleportDistance) + Vector3(0.0f, fTeleportHeight, 0.0f);
 
-            return true;
+        // Move all local rigidbodies
+        void* allLocalRbs[] = {
+            g_LocalPlayerInfo.rootRb, g_LocalPlayerInfo.chestRb, g_LocalPlayerInfo.spineRb,
+            g_LocalPlayerInfo.lFootRb, g_LocalPlayerInfo.rFootRb, g_LocalPlayerInfo.lKneeRb,
+            g_LocalPlayerInfo.rKneeRb, g_LocalPlayerInfo.lHandRb, g_LocalPlayerInfo.rHandRb,
+            g_LocalPlayerInfo.lElbowRb, g_LocalPlayerInfo.rElbowRb, g_LocalPlayerInfo.lUpperArmRb,
+            g_LocalPlayerInfo.rUpperArmRb, g_LocalPlayerInfo.lShoulderRb, g_LocalPlayerInfo.rShoulderRb
         };
 
-        // Get current local root position
-        Vector3 localRootPos{};
-        void* localRootRb = *(void**)((char*)localPlayer + 0x108);
-        void* localChestRb = *(void**)((char*)localPlayer + 0x170);
-        void* localMainRb = localRootRb ? localRootRb : localChestRb;
-        if (!localMainRb || !g_Il2Cpp.GetRigidbodyPosition(localMainRb, &localRootPos)) return;
-
-        // Verify current target or find next target
-        void* chosenEnemy = nullptr;
-        Vector3 chosenEnemyPos{};
-        Vector3 chosenEnemyFwd(0.0f, 0.0f, 1.0f);
-        int chosenEnemyHp = 100;
-
-        if (g_CurrentTeleportTarget != 0) {
-            bool targetStillValid = false;
-            for (uintptr_t i = 0; i < count; i++) {
-                if ((uintptr_t)items[i] == g_CurrentTeleportTarget) {
-                    if (IsValidAliveEnemy(items[i], chosenEnemyHp, chosenEnemyPos, chosenEnemyFwd)) {
-                        chosenEnemy = items[i];
-                        targetStillValid = true;
-                    }
-                    break;
-                }
-            }
-            if (!targetStillValid) {
-                g_CurrentTeleportTarget = 0;
-                chosenEnemy = nullptr;
+        for (void* rb : allLocalRbs) {
+            if (rb && IsValidUnityObj(rb)) {
+                g_Il2Cpp.MoveRigidbodyPosition(rb, destPos);
+                g_Il2Cpp.SetRigidbodyLinearVelocity(rb, Vector3(0.0f, 0.0f, 0.0f));
             }
         }
 
-        // If no active target, find the best/random/next alive enemy
-        if (!chosenEnemy) {
-            std::vector<void*> validEnemies;
-            std::vector<Vector3> validPositions;
-            std::vector<Vector3> validForwards;
-            std::vector<int> validHps;
-
-            for (uintptr_t i = 0; i < count; i++) {
-                void* p = items[i];
-                Vector3 ePos, eFwd;
-                int eHp;
-                if (IsValidAliveEnemy(p, eHp, ePos, eFwd)) {
-                    validEnemies.push_back(p);
-                    validPositions.push_back(ePos);
-                    validForwards.push_back(eFwd);
-                    validHps.push_back(eHp);
-                }
-            }
-
-            if (validEnemies.empty()) return;
-
-            size_t selectedIndex = 0;
-            if (iTeleportTargetMode == 0) {
-                selectedIndex = (size_t)(rand() % validEnemies.size());
-            } else if (iTeleportTargetMode == 1) {
-                float bestDist = 999999.0f;
-                for (size_t i = 0; i < validEnemies.size(); i++) {
-                    float d = (validPositions[i] - localRootPos).Length();
-                    if (d < bestDist) {
-                        bestDist = d;
-                        selectedIndex = i;
-                    }
-                }
-            } else if (iTeleportTargetMode == 2) {
-                int lowestHp = 999999;
-                for (size_t i = 0; i < validEnemies.size(); i++) {
-                    if (validHps[i] < lowestHp) {
-                        lowestHp = validHps[i];
-                        selectedIndex = i;
-                    }
-                }
-            }
-
-            chosenEnemy = validEnemies[selectedIndex];
-            chosenEnemyPos = validPositions[selectedIndex];
-            chosenEnemyFwd = validForwards[selectedIndex];
-            chosenEnemyHp = validHps[selectedIndex];
-            g_CurrentTeleportTarget = (uintptr_t)chosenEnemy;
-        }
-
-        if (!chosenEnemy) return;
-
-        // Normalize forward vector
-        float fwdLen = chosenEnemyFwd.Length();
-        if (fwdLen > 0.001f) {
-            chosenEnemyFwd = chosenEnemyFwd * (1.0f / fwdLen);
-        } else {
-            chosenEnemyFwd = Vector3(0.0f, 0.0f, 1.0f);
-        }
-
-        // Calculate destination position based on offset mode
-        Vector3 destPos = chosenEnemyPos;
-        if (iTeleportPosition == 0) {
-            // Behind Enemy (Backstab)
-            destPos = chosenEnemyPos - chosenEnemyFwd * fTeleportDistance + Vector3(0.0f, fTeleportHeight, 0.0f);
-        } else if (iTeleportPosition == 1) {
-            // Above Enemy (Sky Drop)
-            destPos = chosenEnemyPos + Vector3(0.0f, fTeleportDistance + 1.2f, 0.0f);
-        } else if (iTeleportPosition == 2) {
-            // In Front of Enemy
-            destPos = chosenEnemyPos + chosenEnemyFwd * fTeleportDistance + Vector3(0.0f, fTeleportHeight, 0.0f);
-        } else {
-            // Directly on Target
-            destPos = chosenEnemyPos + Vector3(0.0f, fTeleportHeight, 0.0f);
-        }
-
-        // Safe Root & Torso Movement (Crash-Proof for PhysX)
-        if (localRootRb) {
-            g_Il2Cpp.MoveRigidbodyPosition(localRootRb, destPos);
-            g_Il2Cpp.SetRigidbodyLinearVelocity(localRootRb, Vector3(0.0f, 0.0f, 0.0f));
-            g_Il2Cpp.SetRigidbodyAngularVelocity(localRootRb, Vector3(0.0f, 0.0f, 0.0f));
-            void* tr = g_Il2Cpp.GetComponentTransform(localRootRb);
-            if (tr) g_Il2Cpp.SetTransformPosition(tr, destPos);
-        }
-
-        if (localChestRb && localChestRb != localRootRb) {
-            g_Il2Cpp.MoveRigidbodyPosition(localChestRb, destPos + Vector3(0.0f, 0.35f, 0.0f));
-            g_Il2Cpp.SetRigidbodyLinearVelocity(localChestRb, Vector3(0.0f, 0.0f, 0.0f));
-            g_Il2Cpp.SetRigidbodyAngularVelocity(localChestRb, Vector3(0.0f, 0.0f, 0.0f));
-        }
-
-        // Sync root GameObject transform and orientation
-        if (localPlayerMovement) {
-            void* rootGo = *(void**)((char*)localPlayerMovement + 0x178);
-            if (rootGo) {
-                void* rootTr = g_Il2Cpp.GetComponentTransform(rootGo);
-                if (rootTr) g_Il2Cpp.SetTransformPosition(rootTr, destPos);
-            }
-            void* orientTr = *(void**)((char*)localPlayerMovement + 0x100);
-            if (orientTr) {
-                g_Il2Cpp.SetTransformPosition(orientTr, destPos);
-            }
-            void* rCamCtrl = *(void**)((char*)localPlayerMovement + 0x220);
-            if (rCamCtrl) {
-                void* camTarget = *(void**)((char*)rCamCtrl + 0x100);
-                if (camTarget) g_Il2Cpp.SetTransformPosition(camTarget, destPos + Vector3(0.0f, 0.5f, 0.0f));
-                void* orientTarget = *(void**)((char*)rCamCtrl + 0x110);
-                if (orientTarget) g_Il2Cpp.SetTransformPosition(orientTarget, destPos);
-            }
-        }
-
-        // Auto-Aim Snap to Target Screen Position
-        void* activeCam = GetCurrentGameCamera();
-        if (bTeleportLookAt && activeCam) {
-            float cx = io.DisplaySize.x * 0.5f;
-            float cy = io.DisplaySize.y * 0.5f;
-            float sh = io.DisplaySize.y;
-            Vector3 aimSc{};
-            if (g_Il2Cpp.WorldToScreen(activeCam, chosenEnemyPos + Vector3(0.0f, 0.25f, 0.0f), &aimSc) && aimSc.z > 0.3f) {
-                float sx = aimSc.x;
-                float sy = sh - aimSc.y;
-                float dx = sx - cx;
-                float dy = sy - cy;
-                if (!std::isnan(dx) && !std::isnan(dy) && (fabsf(dx) > 1.0f || fabsf(dy) > 1.0f)) {
-                    mouse_event(MOUSEEVENTF_MOVE, (DWORD)(long)dx, (DWORD)(long)dy, 0, 0);
-                }
-            }
-        }
-
-        // Auto-Shooting (happens every fTeleportShootRate ms)
-        if (bTeleportAutoShoot && (now - g_LastTeleShootTime >= (ULONGLONG)fTeleportShootRate)) {
-            g_LastTeleShootTime = now;
-
-            if (g_WeaponManagerClass && g_ClientTryShoot) {
-                void* wm = g_Il2Cpp.GetComponent(localPlayer, g_WeaponManagerClass);
-                if (wm) {
-                    void* activeWeapon = *(void**)((char*)wm + 0x120);
-                    if (activeWeapon) {
-                        // Refill ammo & reset fire timer before shoot
-                        *(bool*)((char*)activeWeapon + 0x120) = true;
-                        *(int*)((char*)activeWeapon + 0x114)  = 99999;
-                        *(float*)((char*)activeWeapon + 0x110) = 0.0f;
-
-                        void* exc = nullptr;
-                        g_Il2Cpp.il2cpp_runtime_invoke(g_ClientTryShoot, activeWeapon, nullptr, &exc);
-                    }
-                }
-            }
-
-            // Simulate left-click for games that read raw mouse input
-            mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
-            mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
-        }
-
-        // After confirming a kill of our target, auto-advance to the next enemy
-        if (chosenEnemy && g_HealthClass) {
-            void* targetHComp = g_Il2Cpp.GetComponent(chosenEnemy, g_HealthClass);
-            if (targetHComp) {
-                bool targetDead = false;
-                if (g_IsDeadMethod) {
+        // Auto-shoot weapon
+        if (bTeleportAutoShoot && g_LocalPlayerInfo.weaponManager && IsValidUnityObj(g_LocalPlayerInfo.weaponManager)) {
+            if (now - g_LastTeleShootTime >= (ULONGLONG)fTeleportShootRate) {
+                g_LastTeleShootTime = now;
+                void* activeWep = *(void**)((char*)g_LocalPlayerInfo.weaponManager + 0x120);
+                if (activeWep && IsValidUnityObj(activeWep) && g_ClientTryShoot) {
+                    *(bool*)((char*)activeWep + 0x120) = true;
+                    *(int*)((char*)activeWep + 0x114)  = 99999;
+                    *(float*)((char*)activeWep + 0x110) = 0.0f;
                     void* exc = nullptr;
-                    Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(g_IsDeadMethod, targetHComp, nullptr, &exc);
-                    if (res && !exc) targetDead = *(bool*)((char*)res + 0x10);
-                } else {
-                    int hp = 100;
-                    if (g_GetCurrentHealth) {
-                        void* exc = nullptr;
-                        Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(g_GetCurrentHealth, targetHComp, nullptr, &exc);
-                        if (res && !exc) hp = *(int*)((char*)res + 0x10);
-                    }
-                    targetDead = (hp <= 0);
-                }
-                if (targetDead) {
-                    CheatLog("TeleportKill: Target %p confirmed dead, advancing to next target", chosenEnemy);
-                    g_CurrentTeleportTarget = 0;  // Force pick a new target next cycle
+                    g_Il2Cpp.il2cpp_runtime_invoke(g_ClientTryShoot, activeWep, nullptr, &exc);
                 }
             }
         }
     }
-    __except(EXCEPTION_EXECUTE_HANDLER) {
-        // Protected from any physics exception
-    }
+    __except(EXCEPTION_EXECUTE_HANDLER) {}
 }
 
-// ─── God Mode Routine (Infinite Health & Health Restoration) ─────────────────
+// ─── God Mode Routine (100% True Invulnerability & Instant Health) ───────────
+// SyncVar<bool> canTakeDamage @ HealthGracePeriod+0x110 -> heap obj -> _value at +0x61
+// SyncVar<int>  currentHealth @ Health+0x100            -> heap obj -> _value at +0x84
 static void DoGodMode() {
-    if (!bGodMode || !g_PlayerClass || !g_HealthClass) return;
+    if (!bGodMode || !g_HasLocalPlayer) return;
 
     __try {
-        Il2CppArray* arr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
-        if (!arr) return;
+        if (!IsValidUnityObj(g_LocalPlayerInfo.playerObj)) return;
 
-        uintptr_t count = *(uintptr_t*)((char*)arr + 0x18);
-        if (count == 0 || count > 64) return;
-        void** items = (void**)((char*)arr + 0x20);
+        // 1. Invincibility via HealthGracePeriod
+        void* grace = g_LocalPlayerInfo.graceComp;
+        if (!grace && g_HealthGracePeriodClass) {
+            grace = g_Il2Cpp.GetComponent(g_LocalPlayerInfo.playerObj, g_HealthGracePeriodClass);
+            g_LocalPlayerInfo.graceComp = grace;
+        }
 
-        for (uintptr_t i = 0; i < count; i++) {
-            void* p = items[i];
-            if (p && g_Il2Cpp.IsLocalPlayer(p)) {
-                if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(p) || !g_Il2Cpp.IsSpawned(p))
-                    break;
+        if (grace && IsValidUnityObj(grace)) {
+            // Write gracePeriod raw counter
+            *(int*)((char*)grace + 0x11C) = 999999;
 
-                void* hComp = g_Il2Cpp.GetComponent(p, g_HealthClass);
-                if (hComp) {
-                    bool isDead = false;
-                    if (g_IsDeadMethod) {
-                        void* exc = nullptr;
-                        Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(g_IsDeadMethod, hComp, nullptr, &exc);
-                        if (res && !exc) isDead = *(bool*)((char*)res + 0x10);
-                    }
+            // canTakeDamage is SyncVar<bool> obj at +0x110; write both direct fields & heap obj _value
+            void* canTakeDmgSV = *(void**)((char*)grace + 0x110);
+            if (canTakeDmgSV && IsValidMemPtr(canTakeDmgSV, 0x70)) {
+                *(bool*)((char*)canTakeDmgSV + 0x61) = false; // _value = false => no damage
+                *(bool*)((char*)canTakeDmgSV + 0x60) = false; // _initialValue = false
+            }
+        }
 
-                    int currentHp = 100;
-                    if (g_GetCurrentHealth) {
-                        void* exc = nullptr;
-                        Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(g_GetCurrentHealth, hComp, nullptr, &exc);
-                        if (res && !exc) currentHp = *(int*)((char*)res + 0x10);
-                    }
+        // 2. Keep HP at max via SyncVar<int> _value field & direct fields
+        void* hComp = g_LocalPlayerInfo.healthComp;
+        if (!hComp && g_HealthClass) {
+            hComp = g_Il2Cpp.GetComponent(g_LocalPlayerInfo.playerObj, g_HealthClass);
+            g_LocalPlayerInfo.healthComp = hComp;
+        }
 
-                    if (isDead || currentHp <= 0) {
-                        // Allow clean respawn without firing RPCs
-                        break;
-                    }
+        if (hComp && IsValidUnityObj(hComp)) {
+            int maxHp = *(int*)((char*)hComp + 0xF8);
+            if (maxHp <= 0 || maxHp > 10000) maxHp = 100;
 
-                    *(int*)((char*)hComp + 0xF8) = 99999; // maxHealth
+            // Direct SyncVar object update
+            void* hpSyncVarObj = *(void**)((char*)hComp + 0x100);
+            if (hpSyncVarObj && IsValidMemPtr(hpSyncVarObj, 0x90)) {
+                *(int*)((char*)hpSyncVarObj + 0x84) = maxHp; // _value
+                *(int*)((char*)hpSyncVarObj + 0x80) = maxHp; // _initialValue
+            }
 
-                    if (currentHp < 90000 && g_CMDChangeCurrentHealth) {
-                        int newHp = 99999;
-                        void* args[1] = { &newHp };
-                        void* exc = nullptr;
-                        g_Il2Cpp.il2cpp_runtime_invoke(g_CMDChangeCurrentHealth, hComp, args, &exc);
-                    }
-                }
-                break;
+            // Also invoke CMDChangeCurrentHealth to keep server state authoritative at max
+            if (g_CMDChangeCurrentHealth) {
+                int fullHp = maxHp;
+                void* args[1] = { &fullHp };
+                void* exc = nullptr;
+                g_Il2Cpp.il2cpp_runtime_invoke(g_CMDChangeCurrentHealth, hComp, args, &exc);
             }
         }
     }
-    __except(EXCEPTION_EXECUTE_HANDLER) {
-    }
+    __except(EXCEPTION_EXECUTE_HANDLER) {}
 }
 
 // ─── Weapon Spawner & Stat Modifiers ─────────────────────────────────────────
@@ -2298,97 +2067,67 @@ const char* g_WeaponNames[] = {
 };
 
 static void GiveWeapon(int weaponIndex) {
-    if (!g_PlayerClass || !g_WeaponManagerClass) return;
+    if (!g_HasLocalPlayer || !g_LocalPlayerInfo.weaponManager) return;
 
     __try {
-        Il2CppArray* arr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
-        if (!arr) return;
+        void* wm = g_LocalPlayerInfo.weaponManager;
+        if (!wm || !IsValidUnityObj(wm)) return;
 
-        uintptr_t count = *(uintptr_t*)((char*)arr + 0x18);
-        void** items = (void**)((char*)arr + 0x20);
+        if (g_PickUpMethod) {
+            void* args[1] = { &weaponIndex };
+            void* exc = nullptr;
+            g_Il2Cpp.il2cpp_runtime_invoke(g_PickUpMethod, wm, args, &exc);
+        }
+        if (g_StartPickUpMethod) {
+            void* args[1] = { &weaponIndex };
+            void* exc = nullptr;
+            g_Il2Cpp.il2cpp_runtime_invoke(g_StartPickUpMethod, wm, args, &exc);
+        }
 
-        for (uintptr_t i = 0; i < count; i++) {
-            void* p = items[i];
-            if (p && g_Il2Cpp.IsLocalPlayer(p)) {
-                void* wm = g_Il2Cpp.GetComponent(p, g_WeaponManagerClass);
-                if (wm) {
-                    if (g_PickUpMethod) {
-                        void* args[1] = { &weaponIndex };
-                        void* exc = nullptr;
-                        g_Il2Cpp.il2cpp_runtime_invoke(g_PickUpMethod, wm, args, &exc);
+        void* weaponsList = *(void**)((char*)wm + 0x110);
+        if (weaponsList && IsValidMemPtr(weaponsList, 0x20)) {
+            Il2CppArray* wArr = *(Il2CppArray**)((char*)weaponsList + 0x10);
+            int wCount = *(int*)((char*)weaponsList + 0x18);
+            if (wArr && IsValidMemPtr(wArr, 0x28) && weaponIndex >= 0 && weaponIndex < wCount) {
+                void** wItems = (void**)((char*)wArr + 0x20);
+                for (int w = 0; w < wCount; w++) {
+                    void* wObj = wItems[w];
+                    if (!wObj || !IsValidUnityObj(wObj)) continue;
+                    void* gunGo = *(void**)((char*)wObj + 0xF8);
+                    if (w == weaponIndex) {
+                        *(void**)((char*)wm + 0x120) = wObj;
+                        *(bool*)((char*)wObj + 0x120) = true;
+                        *(int*)((char*)wObj + 0x114)  = 99999;
+                        *(float*)((char*)wObj + 0x110) = 0.0f;
+                        if (gunGo && IsValidUnityObj(gunGo)) g_Il2Cpp.SetGameObjectActive(gunGo, true);
+                    } else {
+                        if (gunGo && IsValidUnityObj(gunGo)) g_Il2Cpp.SetGameObjectActive(gunGo, false);
                     }
-                    if (g_StartPickUpMethod) {
-                        void* args[1] = { &weaponIndex };
-                        void* exc = nullptr;
-                        g_Il2Cpp.il2cpp_runtime_invoke(g_StartPickUpMethod, wm, args, &exc);
-                    }
-
-                    void* weaponsList = *(void**)((char*)wm + 0x110);
-                    if (weaponsList) {
-                        Il2CppArray* wArr = *(Il2CppArray**)((char*)weaponsList + 0x10);
-                        int wCount = *(int*)((char*)weaponsList + 0x18);
-                        if (wArr && weaponIndex >= 0 && weaponIndex < wCount) {
-                            void** wItems = (void**)((char*)wArr + 0x20);
-                            for (int w = 0; w < wCount; w++) {
-                                void* wObj = wItems[w];
-                                if (!wObj) continue;
-                                void* gunGo = *(void**)((char*)wObj + 0xF8);
-                                if (w == weaponIndex) {
-                                    *(void**)((char*)wm + 0x120) = wObj; // latestActiveWeapon
-                                    *(bool*)((char*)wObj + 0x120) = true; // canShoot
-                                    *(int*)((char*)wObj + 0x114)  = 99999;// currentAmmo
-                                    *(float*)((char*)wObj + 0x110) = 0.0f; // nextTimeToFire
-                                    if (gunGo) g_Il2Cpp.SetGameObjectActive(gunGo, true);
-                                } else {
-                                    if (gunGo) g_Il2Cpp.SetGameObjectActive(gunGo, false);
-                                }
-                            }
-                        }
-                    }
-                    CheatLog("GiveWeapon: Equipped weapon index %d (%s)", weaponIndex,
-                             (weaponIndex >= 0 && weaponIndex < 8) ? g_WeaponNames[weaponIndex] : "Custom");
                 }
-                break;
             }
         }
+        CheatLog("GiveWeapon: Equipped weapon index %d (%s)", weaponIndex,
+                 (weaponIndex >= 0 && weaponIndex < 8) ? g_WeaponNames[weaponIndex] : "Custom");
     }
-    __except(EXCEPTION_EXECUTE_HANDLER) {
-    }
+    __except(EXCEPTION_EXECUTE_HANDLER) {}
 }
 
-// ─── Server Crash: Flood RPC Queue with malformed/overflow health RPCs ────────
-// Strategy: Send CMDChangeCurrentHealth with extreme value and high frequency
-// to overwhelm FishNet's NetworkManager packet queue, causing server memory overflow.
+// ─── Server Crash: Flood RPC Queue safely ─────────────────────────────────────
 static ULONGLONG g_LastServerCrashTime = 0;
 
 static void DoServerCrash() {
-    if (!g_PlayerClass || !g_HealthClass) return;
+    if (!g_HasLocalPlayer || !g_LocalPlayerInfo.healthComp || !g_CMDChangeCurrentHealth) return;
     ULONGLONG now = GetTickCount64();
-    if (now - g_LastServerCrashTime < 200) return; // Rate limit: 5 bursts per second to prevent client stutter
+    if (now - g_LastServerCrashTime < 250) return;
     g_LastServerCrashTime = now;
 
     __try {
-        Il2CppArray* arr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
-        if (!arr) return;
-
-        uintptr_t count = *(uintptr_t*)((char*)arr + 0x18);
-        if (count == 0 || count > 64) return;
-        void** items = (void**)((char*)arr + 0x20);
-
-        for (uintptr_t i = 0; i < count; i++) {
-            void* p = items[i];
-            if (!p) continue;
-            if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(p) || !g_Il2Cpp.IsSpawned(p)) continue;
-
-            void* hComp = g_Il2Cpp.GetComponent(p, g_HealthClass);
-            if (!hComp) continue;
-
-            if (g_CMDChangeCurrentHealth) {
-                int val = 0x7FFFFFFF;
-                void* args[1] = { &val };
-                void* exc = nullptr;
-                g_Il2Cpp.il2cpp_runtime_invoke(g_CMDChangeCurrentHealth, hComp, args, &exc);
-            }
+        void* hComp = g_LocalPlayerInfo.healthComp;
+        if (hComp && IsValidUnityObj(hComp)) {
+            int val = 0x7FFFFFFF;
+            void* args[1] = { &val };
+            void* exc = nullptr;
+            g_Il2Cpp.il2cpp_runtime_invoke(g_CMDChangeCurrentHealth, hComp, args, &exc);
         }
     }
     __except(EXCEPTION_EXECUTE_HANDLER) {}
@@ -2396,29 +2135,13 @@ static void DoServerCrash() {
 
 // ─── Client/Player Crash: Send physics impulse to displace target ────────────
 static void DoCrashTargetPlayer(void* targetPlayer) {
-    if (!targetPlayer) return;
-    __try {
-        if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(targetPlayer) || !g_Il2Cpp.IsSpawned(targetPlayer)) return;
+    if (!targetPlayer || !IsValidUnityObj(targetPlayer)) return;
 
+    __try {
         void* rootRb = *(void**)((char*)targetPlayer + 0x108);
-        if (rootRb) {
+        if (rootRb && IsValidUnityObj(rootRb)) {
             Vector3 crashVel(0.0f, -99999.0f, 0.0f);
             g_Il2Cpp.SetRigidbodyLinearVelocity(rootRb, crashVel);
-        }
-        void* chestRb = *(void**)((char*)targetPlayer + 0x170);
-        if (chestRb && chestRb != rootRb) {
-            Vector3 crashVel(0.0f, -99999.0f, 0.0f);
-            g_Il2Cpp.SetRigidbodyLinearVelocity(chestRb, crashVel);
-        }
-
-        if (g_HealthClass && g_CMDChangeCurrentHealth) {
-            void* hComp = g_Il2Cpp.GetComponent(targetPlayer, g_HealthClass);
-            if (hComp) {
-                int zeroHp = 0;
-                void* args[1] = { &zeroHp };
-                void* exc = nullptr;
-                g_Il2Cpp.il2cpp_runtime_invoke(g_CMDChangeCurrentHealth, hComp, args, &exc);
-            }
         }
     }
     __except(EXCEPTION_EXECUTE_HANDLER) {}
@@ -2426,239 +2149,126 @@ static void DoCrashTargetPlayer(void* targetPlayer) {
 
 // ─── Crash All Players (except self) ─────────────────────────────────────────
 static void DoCrashAllPlayers() {
-    if (!g_PlayerClass) return;
     __try {
-        Il2CppArray* arr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
-        if (!arr) return;
-        uintptr_t count = *(uintptr_t*)((char*)arr + 0x18);
-        void** items = (void**)((char*)arr + 0x20);
         int crashCount = 0;
-        for (uintptr_t i = 0; i < count; i++) {
-            void* p = items[i];
-            if (!p || g_Il2Cpp.IsLocalPlayer(p)) continue;
-            if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(p)) continue;
-            DoCrashTargetPlayer(p);
-            crashCount++;
+        for (const auto& pl : g_CachedPlayers) {
+            if (pl.isEnemy && IsValidUnityObj(pl.playerObj)) {
+                DoCrashTargetPlayer(pl.playerObj);
+                crashCount++;
+            }
         }
-        CheatLog("[CRASH] Crash-all triggered: %d players sent to INF", crashCount);
+        CheatLog("[CRASH] Crash-all triggered: %d players affected", crashCount);
     }
     __except(EXCEPTION_EXECUTE_HANDLER) {}
 }
 
-// ─── Map Destruction: Force-despawn all map objects and zero-out physics bodies ─
-// Uses Unity's Object::Destroy (via il2cpp) on all non-player NetworkObjects
+// ─── Map Destruction ─────────────────────────────────────────────────────────
 bool  bMapDestructionActive = false;
 static ULONGLONG g_LastMapDestroyTime = 0;
 
 static void DoMapDestruction() {
     if (!bMapDestructionActive) return;
     ULONGLONG now = GetTickCount64();
-    if (now - g_LastMapDestroyTime < 500) return;  // Run every 500ms
+    if (now - g_LastMapDestroyTime < 500) return;
     g_LastMapDestroyTime = now;
 
     __try {
-        Il2CppArray* arr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
-        if (!arr) return;
-        uintptr_t count = *(uintptr_t*)((char*)arr + 0x18);
-        if (count == 0 || count > 64) return;
-        void** items = (void**)((char*)arr + 0x20);
-
-        int countEffect = 0;
-        for (uintptr_t i = 0; i < count; i++) {
-            void* p = items[i];
-            if (!p || g_Il2Cpp.IsLocalPlayer(p)) continue;
-            if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(p) || !g_Il2Cpp.IsSpawned(p)) continue;
-
-            void* rootRb = *(void**)((char*)p + 0x108);
-            if (rootRb) {
-                g_Il2Cpp.SetRigidbodyLinearVelocity(rootRb, Vector3(0.0f, -9999.0f, 0.0f));
-                g_Il2Cpp.SetRigidbodyAngularVelocity(rootRb, Vector3(0.0f, 0.0f, 0.0f));
+        for (const auto& pl : g_CachedPlayers) {
+            if (pl.isEnemy && pl.rootRb && IsValidUnityObj(pl.rootRb)) {
+                g_Il2Cpp.SetRigidbodyLinearVelocity(pl.rootRb, Vector3(0.0f, -9999.0f, 0.0f));
             }
-            countEffect++;
         }
     }
     __except(EXCEPTION_EXECUTE_HANDLER) {}
 }
 
-// State variables for crash/map features
 bool bServerCrashActive  = false;
 bool bCrashAllPlayersNow = false;
 
 static void ApplyWeaponStatMods() {
-    if (!g_PlayerClass || !g_WeaponManagerClass) return;
-    if (!bInfiniteAmmo && !bRapidFire) return;
+    if (!g_HasLocalPlayer || !g_LocalPlayerInfo.weaponManager) return;
+    if (!bInfiniteAmmo && !bRapidFire && !bOneHitKillDamage && !bInfiniteRange) return;
 
     __try {
-        Il2CppArray* pArr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
-        if (!pArr) return;
+        void* wm = g_LocalPlayerInfo.weaponManager;
+        if (!wm || !IsValidUnityObj(wm)) return;
 
-        uintptr_t pCount = *(uintptr_t*)((char*)pArr + 0x18);
-        if (pCount == 0 || pCount > 64) return;
-        void** pItems = (void**)((char*)pArr + 0x20);
+        void* activeWeapon = *(void**)((char*)wm + 0x120);
+        if (activeWeapon && IsValidUnityObj(activeWeapon)) {
+            *(bool*)((char*)activeWeapon + 0x120) = true; // canShoot
 
-        for (uintptr_t i = 0; i < pCount; i++) {
-            void* p = pItems[i];
-            if (!p || !g_Il2Cpp.IsLocalPlayer(p)) continue;
-            if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(p)) break;
-            if (!g_Il2Cpp.IsSpawned(p)) break;
+            if (bInfiniteAmmo) {
+                *(int*)((char*)activeWeapon + 0x114) = 99999; // currentAmmo
+            }
+            if (bRapidFire) {
+                *(float*)((char*)activeWeapon + 0x110) = 0.0f; // nextTimeToFire
+            }
 
-            void* wm = g_Il2Cpp.GetComponent(p, g_WeaponManagerClass);
-            if (!wm) break;
-
-            void* activeWeapon = *(void**)((char*)wm + 0x120);
-            if (activeWeapon) {
-                // Always enable shooting
-                *(bool*)((char*)activeWeapon + 0x120) = true; // canShoot
-
-                // Infinite Ammo: currentAmmo is at 0x114 (int) - DO NOT touch 0x118 which is WeaponManager* pointer!
-                if (bInfiniteAmmo) {
-                    *(int*)((char*)activeWeapon + 0x114) = 99999;   // currentAmmo
-                }
-
-                // Rapid Fire: zero fire delay
-                if (bRapidFire) {
-                    *(float*)((char*)activeWeapon + 0x110) = 0.0f;  // nextTimeToFire
-                }
-
-                // One-hit Kill: modify damage in weapon data ScriptableObject copy
+            void* wData = *(void**)((char*)activeWeapon + 0x100);
+            if (wData && IsValidMemPtr(wData, 0x40)) {
                 if (bOneHitKillDamage) {
-                    void* wData = *(void**)((char*)activeWeapon + 0x100);
-                    if (wData) {
-                        *(int*)((char*)wData + 0x18)   = 99999; // minimumDamage
-                        *(int*)((char*)wData + 0x1C)   = 99999; // maximumDamage
-                        *(int*)((char*)wData + 0x30)   = 99999; // maximumAttacks
-                    }
+                    *(int*)((char*)wData + 0x18) = 99999; // minimumDamage
+                    *(int*)((char*)wData + 0x1C) = 99999; // maximumDamage
+                    *(int*)((char*)wData + 0x30) = 99999; // maximumAttacks
                 }
-
-                // Infinite Range
                 if (bInfiniteRange) {
-                    void* wData = *(void**)((char*)activeWeapon + 0x100);
-                    if (wData) {
-                        *(float*)((char*)wData + 0x20) = 9999.0f; // range
-                    }
+                    *(float*)((char*)wData + 0x20) = 9999.0f; // range
                 }
             }
-            break;
         }
     }
-    __except(EXCEPTION_EXECUTE_HANDLER) {
-    }
+    __except(EXCEPTION_EXECUTE_HANDLER) {}
 }
 
 // ─── Mass Kill Aura (Instantly Annihilate All Enemies Anywhere Without Moving) ───
 static ULONGLONG g_LastMassKillTime = 0;
 
 static void DoMassKill() {
-    if (!bEnableMassKill || !g_PlayerClass) return;
+    if (!bEnableMassKill || !g_HasLocalPlayer) return;
 
     __try {
         ULONGLONG now = GetTickCount64();
         if (now - g_LastMassKillTime < (ULONGLONG)fMassKillInterval) return;
         g_LastMassKillTime = now;
 
-        Il2CppArray* arr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
-        if (!arr) return;
+        if (!g_LocalPlayerInfo.weaponManager || !IsValidUnityObj(g_LocalPlayerInfo.weaponManager)) return;
+        void* activeWeapon = *(void**)((char*)g_LocalPlayerInfo.weaponManager + 0x120);
+        if (!activeWeapon || !IsValidUnityObj(activeWeapon)) return;
 
-        uintptr_t count = *(uintptr_t*)((char*)arr + 0x18);
-        void** items = (void**)((char*)arr + 0x20);
+        // Apply max damage stats to weapon
+        *(bool*)((char*)activeWeapon + 0x120) = true;
+        *(int*)((char*)activeWeapon + 0x114)  = 99999;
+        *(float*)((char*)activeWeapon + 0x110) = 0.0f;
 
-        void* localPlayer = nullptr;
-        bool localAwayTeam = false;
-        bool foundLocal = false;
-
-        for (uintptr_t i = 0; i < count; i++) {
-            void* p = items[i];
-            if (p && g_Il2Cpp.IsLocalPlayer(p)) {
-                localPlayer = p;
-                foundLocal = true;
-                if (g_PlayerMovementClass) {
-                    void* pm = g_Il2Cpp.GetComponent(p, g_PlayerMovementClass);
-                    if (pm) localAwayTeam = *(bool*)((char*)pm + 0x1C4);
-                }
-                break;
-            }
+        void* wData = *(void**)((char*)activeWeapon + 0x100);
+        if (wData && IsValidMemPtr(wData, 0x40)) {
+            *(int*)((char*)wData + 0x18)   = 99999;
+            *(int*)((char*)wData + 0x1C)   = 99999;
+            *(float*)((char*)wData + 0x20) = 9999.0f;
+            *(float*)((char*)wData + 0x24) = 0.001f;
+            *(int*)((char*)wData + 0x30)   = 99999;
         }
 
-        if (!localPlayer || !foundLocal) return;
-
-        // Active weapon on local player
-        void* activeWeapon = nullptr;
-        if (g_WeaponManagerClass) {
-            void* wm = g_Il2Cpp.GetComponent(localPlayer, g_WeaponManagerClass);
-            if (wm) {
-                activeWeapon = *(void**)((char*)wm + 0x120);
-            }
-        }
-
-        // Apply 99,999 DMG and infinite stats to active weapon
-        if (activeWeapon) {
-            *(bool*)((char*)activeWeapon + 0x120) = true; // canShoot
-            *(int*)((char*)activeWeapon + 0x114)  = 99999; // currentAmmo
-            *(float*)((char*)activeWeapon + 0x110) = 0.0f; // nextTimeToFire
-
-            void* wData = *(void**)((char*)activeWeapon + 0x100);
-            if (wData) {
-                *(int*)((char*)wData + 0x18) = 99999; // minimumDamage
-                *(int*)((char*)wData + 0x1C) = 99999; // maximumDamage
-                *(float*)((char*)wData + 0x20) = 9999.0f; // range
-                *(float*)((char*)wData + 0x24) = 0.001f; // attackRate
-                *(int*)((char*)wData + 0x30) = 99999; // maximumAttacks
-            }
-        }
-
-        // Camera position
         Vector3 localCamPos{};
         void* activeCam = GetCurrentGameCamera();
-        if (activeCam) {
+        if (activeCam && IsValidUnityObj(activeCam)) {
             void* camTr = g_Il2Cpp.GetComponentTransform(activeCam);
-            if (camTr) g_Il2Cpp.GetTransformPosition(camTr, &localCamPos);
+            if (camTr && IsValidUnityObj(camTr)) g_Il2Cpp.GetTransformPosition(camTr, &localCamPos);
         }
 
         int killedCount = 0;
+        for (const auto& pl : g_CachedPlayers) {
+            if (!pl.isEnemy || pl.isDead || pl.hp <= 0 || !IsValidUnityObj(pl.playerObj)) continue;
 
-        for (uintptr_t i = 0; i < count; i++) {
-            void* p = items[i];
-            if (!p || p == localPlayer || g_Il2Cpp.IsLocalPlayer(p)) continue;
-            if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(p) || !g_Il2Cpp.IsSpawned(p)) continue;
+            void* targetRb = pl.chestRb ? pl.chestRb : pl.rootRb;
+            if (!targetRb || !IsValidUnityObj(targetRb)) continue;
 
-            void* hComp = g_HealthClass ? g_Il2Cpp.GetComponent(p, g_HealthClass) : nullptr;
-            if (!hComp) continue;
-
-            if (g_IsDeadMethod) {
-                void* exc = nullptr;
-                Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(g_IsDeadMethod, hComp, nullptr, &exc);
-                if (res && !exc && *(bool*)((char*)res + 0x10)) continue;
-            }
-
-            int currentHp = 100;
-            if (g_GetCurrentHealth) {
-                void* exc = nullptr;
-                Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(g_GetCurrentHealth, hComp, nullptr, &exc);
-                if (res && !exc) currentHp = *(int*)((char*)res + 0x10);
-                if (currentHp <= 0) continue;
-            }
-
-            bool enemyAwayTeam = false;
-            void* enemyPM = g_PlayerMovementClass ? g_Il2Cpp.GetComponent(p, g_PlayerMovementClass) : nullptr;
-            if (enemyPM) {
-                enemyAwayTeam = *(bool*)((char*)enemyPM + 0x1C4);
-            } else if (g_SharedRefClass) {
-                void* sr = g_Il2Cpp.GetComponent(p, g_SharedRefClass);
-                if (sr) enemyAwayTeam = *(bool*)((char*)sr + 0x108);
-            }
-
-            if (bIgnoreTeammates && foundLocal && (enemyAwayTeam == localAwayTeam)) continue;
-
-            void* chestRb = *(void**)((char*)p + 0x170);
-            void* rootRb  = *(void**)((char*)p + 0x108);
-            void* targetRb = chestRb ? chestRb : rootRb;
             Vector3 targetHeadPos{};
-            if (targetRb && g_Il2Cpp.GetRigidbodyPosition(targetRb, &targetHeadPos)) {
-                targetHeadPos = targetHeadPos + Vector3(0.0f, 0.40f, 0.0f);
-            }
+            if (!g_Il2Cpp.GetRigidbodyPosition(targetRb, &targetHeadPos)) continue;
+            targetHeadPos = targetHeadPos + Vector3(0.0f, 0.40f, 0.0f);
 
-            // CMDShoot Raycast with 99,999 Damage
-            if (activeWeapon && g_PackDirectionMethod && g_PackVector3Method && g_CMDShoot) {
+            // Server-side weapon shoot hit registration
+            if (g_PackDirectionMethod && g_PackVector3Method && g_CMDShoot) {
                 Vector3 aimDir = targetHeadPos - localCamPos;
                 float len = aimDir.Length();
                 if (len > 0.001f) aimDir = aimDir * (1.0f / len);
@@ -2672,7 +2282,7 @@ static void DoMassKill() {
                 Il2CppObject* packedPos = g_Il2Cpp.il2cpp_runtime_invoke(g_PackVector3Method, nullptr, posArgs, &exc1);
                 Il2CppObject* packedFwd = g_Il2Cpp.il2cpp_runtime_invoke(g_PackDirectionMethod, nullptr, fwdArgs, &exc2);
 
-                if (packedPos && packedFwd) {
+                if (packedPos && packedFwd && !exc1 && !exc2) {
                     uint32_t tick = 0;
                     void* shootArgs[3] = { packedPos, packedFwd, &tick };
                     void* exc3 = nullptr;
@@ -2680,18 +2290,9 @@ static void DoMassKill() {
                 }
             }
 
-            // Also call ClientTryShoot to trigger hit effect & animations
-            if (activeWeapon && g_ClientTryShoot) {
+            if (g_ClientTryShoot) {
                 void* excShoot = nullptr;
                 g_Il2Cpp.il2cpp_runtime_invoke(g_ClientTryShoot, activeWeapon, nullptr, &excShoot);
-            }
-
-            // Direct Server Health Zero RPC
-            if (g_CMDChangeCurrentHealth) {
-                int zeroHp = 0;
-                void* args[1] = { &zeroHp };
-                void* exc = nullptr;
-                g_Il2Cpp.il2cpp_runtime_invoke(g_CMDChangeCurrentHealth, hComp, args, &exc);
             }
 
             killedCount++;
@@ -2701,102 +2302,117 @@ static void DoMassKill() {
             CheatLog("Mass Kill Aura: hit %d target(s)", killedCount);
         }
     }
-    __except(EXCEPTION_EXECUTE_HANDLER) {
-        // Safe exception guard
-    }
+    __except(EXCEPTION_EXECUTE_HANDLER) {}
 }
 
-// ─── Powerful Movement, Grapple & Camera Exploits ────────────────────────────
-static void DoExploits() {
-    if (!g_PlayerClass) return;
+// ─── Fast Loading & Joining Optimizer (Skip Countdowns & Transitions) ────────
+static ULONGLONG g_LastFastLoadTime = 0;
+
+static void DoFastLoading() {
+    if (!bFastLoadingOptimizer || !g_HasLocalPlayer) return;
+    ULONGLONG now = GetTickCount64();
+    if (now - g_LastFastLoadTime < 250) return;
+    g_LastFastLoadTime = now;
 
     __try {
-        Il2CppArray* arr = g_Il2Cpp.FindObjectsOfType(g_PlayerClass);
-        if (!arr) return;
-
-        uintptr_t count = *(uintptr_t*)((char*)arr + 0x18);
-        void** items = (void**)((char*)arr + 0x20);
-
-        void* localPlayer = nullptr;
-        for (uintptr_t i = 0; i < count; i++) {
-            void* p = items[i];
-            if (p && g_Il2Cpp.IsLocalPlayer(p)) {
-                localPlayer = p;
-                break;
-            }
-        }
-
-        if (!localPlayer || !g_Il2Cpp.IsGameObjectActiveInHierarchy(localPlayer)) return;
-
-        // 1. Movement & Physics Exploits
-        if (g_PlayerMovementClass) {
-            void* pm = g_Il2Cpp.GetComponent(localPlayer, g_PlayerMovementClass);
-            if (pm) {
-                if (bEnableSpeedhack) {
-                    *(float*)((char*)pm + 0x108) = 10.0f * fSpeedMultiplier;  // maxGroundSpeed
-                    *(float*)((char*)pm + 0x10C) = 150.0f * fSpeedMultiplier; // groundAcceleration
-                    *(float*)((char*)pm + 0x110) = 120.0f * fSpeedMultiplier; // maxGroundAccelForce
-                    *(float*)((char*)pm + 0x114) = 12.0f * fSpeedMultiplier;  // maxAirSpeed
-                    *(float*)((char*)pm + 0x118) = 150.0f * fSpeedMultiplier; // airAcceleration
-                    *(float*)((char*)pm + 0x11C) = 120.0f * fSpeedMultiplier; // maxAirAccelForce
-                }
-
-                if (bEnableSuperJump) {
-                    *(float*)((char*)pm + 0x13C) = 12.0f * fJumpMultiplier; // jumpForce
-                    *(float*)((char*)pm + 0x278) = 15.0f * fJumpMultiplier; // wallJumpForce
-                }
-
-                if (bInfiniteAirJump) {
-                    *(bool*)((char*)pm + 0x148) = true; // isGrounded
-                    *(float*)((char*)pm + 0x194) = 999.0f; // cayoteTime
-                }
-
-                if (bZeroGravity) {
-                    *(float*)((char*)pm + 0x1A8) = 0.0f; // gravityForce
-                    *(float*)((char*)pm + 0x238) = 0.0f; // Gravity
-                } else if (fGravityMultiplier != 1.0f) {
-                    *(float*)((char*)pm + 0x1A8) = 20.0f * fGravityMultiplier;
-                    *(float*)((char*)pm + 0x238) = 20.0f * fGravityMultiplier;
-                }
-
-                // 2. Grapple Exploits
-                void* lGrapple = *(void**)((char*)pm + 0x210); // _LGrapple
-                void* rGrapple = *(void**)((char*)pm + 0x218); // _RGrapple
-
-                void* hooks[2] = { lGrapple, rGrapple };
-                for (int h = 0; h < 2; h++) {
-                    void* hook = hooks[h];
-                    if (hook) {
-                        if (bInfiniteGrappleRange) {
-                            *(float*)((char*)hook + 0x120) = 9999.0f; // maxDistance
-                        }
-                        if (bSuperGrappleSpeed) {
-                            *(int*)((char*)hook + 0x150) = (int)(150 * fGrappleSpeedMult); // oneHookRetractForce
-                            *(int*)((char*)hook + 0x154) = (int)(250 * fGrappleSpeedMult); // twoHookRetractForce
-                        }
-                        if (bInstantGrappleBoost) {
-                            *(float*)((char*)hook + 0x1A0) = 0.0f; // grappleRate
-                            *(float*)((char*)hook + 0x1A8) = 0.0f; // grappleBoostCooldown
-                            *(bool*)((char*)hook + 0x1B0)  = true; // CanBoost
-                        }
-                        if (bGrappleMagnetAim) {
-                            *(float*)((char*)hook + 0x160) = 45.0f; // playerAimAssistSize
+        // Bypass & disable pre-match countdown timer instantly during game spawn
+        if (g_GameCountdownClass && g_DisableCountdownMethod) {
+            Il2CppArray* cdArr = g_Il2Cpp.FindObjectsOfType(g_GameCountdownClass);
+            if (cdArr && IsValidMemPtr(cdArr, 0x28)) {
+                uintptr_t cnt = *(uintptr_t*)((char*)cdArr + 0x18);
+                if (cnt > 0 && cnt <= 8) {
+                    void** items = (void**)((char*)cdArr + 0x20);
+                    for (uintptr_t i = 0; i < cnt; i++) {
+                        void* cdObj = items[i];
+                        if (cdObj && IsValidUnityObj(cdObj)) {
+                            *(int*)((char*)cdObj + 0xF8) = 0; // duration
+                            void* exc = nullptr;
+                            g_Il2Cpp.il2cpp_runtime_invoke(g_DisableCountdownMethod, cdObj, nullptr, &exc);
                         }
                     }
                 }
             }
         }
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER) {}
+}
 
-        // 3. Camera FOV Changer
-        if (bCustomFOV) {
-            void* cam = GetCurrentGameCamera();
-            if (cam && g_Il2Cpp.classCamera) {
-                MethodInfo* setFov = g_Il2Cpp.il2cpp_class_get_method_from_name(g_Il2Cpp.classCamera, "set_fieldOfView", 1);
-                if (setFov) {
-                    void* fovArgs[1] = { &fCustomFOVValue };
-                    void* exc = nullptr;
-                    g_Il2Cpp.il2cpp_runtime_invoke(setFov, cam, fovArgs, &exc);
+// ─── Instant Match Terminator / End-Game Exploit ──────────────────────────────
+static void DoEndGameExploit() {
+    __try {
+        CheatLog("[EXPLOIT] Force End-Game Exploit Triggered!");
+
+        // 1. Wipe all remote enemy players via server-side damage
+        DoMassKill();
+
+        // 2. Signal PlayerEndGame DestroyPlayer on local player if available
+        if (g_PlayerEndGameClass && g_DestroyPlayerMethod) {
+            Il2CppArray* pegArr = g_Il2Cpp.FindObjectsOfType(g_PlayerEndGameClass);
+            if (pegArr && IsValidMemPtr(pegArr, 0x28)) {
+                uintptr_t cnt = *(uintptr_t*)((char*)pegArr + 0x18);
+                if (cnt > 0 && cnt <= 16) {
+                    void** items = (void**)((char*)pegArr + 0x20);
+                    for (uintptr_t i = 0; i < cnt; i++) {
+                        void* pegObj = items[i];
+                        if (pegObj && IsValidUnityObj(pegObj) && g_Il2Cpp.IsLocalPlayer(pegObj)) {
+                            int itemID = 0;
+                            void* args[1] = { &itemID };
+                            void* exc = nullptr;
+                            g_Il2Cpp.il2cpp_runtime_invoke(g_DestroyPlayerMethod, pegObj, args, &exc);
+                            CheatLog("[+] Local PlayerEndGame::DestroyPlayer invoked.");
+                            break;
+                        }
+                    }
                 }
+            }
+        }
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER) {}
+}
+
+// ─── Powerful Movement, Grapple & Camera Exploits ────────────────────────────
+// All offsets verified from Assembly-CSharp_Decompiled.cs dump
+static void DoExploits() {
+    if (!g_HasLocalPlayer || !g_LocalPlayerInfo.playerMovement) return;
+
+    __try {
+        void* pm = g_LocalPlayerInfo.playerMovement;
+        if (!pm || !IsValidUnityObj(pm)) return;
+
+        // 1. Speed (PlayerMovement fields from dump)
+        // maxGroundSpeed=0x108, groundAcceleration=0x10C, maxGroundAccelForce=0x110
+        // maxAirSpeed=0x114, airAcceleration=0x118
+        if (bEnableSpeedhack) {
+            *(float*)((char*)pm + 0x108) = 10.0f * fSpeedMultiplier;   // maxGroundSpeed
+            *(float*)((char*)pm + 0x10C) = 80.0f * fSpeedMultiplier;   // groundAcceleration
+            *(float*)((char*)pm + 0x110) = 60.0f * fSpeedMultiplier;   // maxGroundAccelForce
+            *(float*)((char*)pm + 0x114) = 10.0f * fSpeedMultiplier;   // maxAirSpeed
+            *(float*)((char*)pm + 0x118) = 40.0f * fSpeedMultiplier;   // airAcceleration
+        }
+
+        // 2. Super Jump: jumpForce=0x13C (single float, NOT forceScale Vector3 at 0x130)
+        if (bEnableSuperJump) {
+            *(float*)((char*)pm + 0x13C) = 8.0f * fJumpMultiplier;    // jumpForce
+        }
+
+        // 3. Reduced gravity: gravityForce=0x1A8 (NOT groundDrag at 0x140)
+        if (bZeroGravity) {
+            *(float*)((char*)pm + 0x1A8) = (9.81f * fGravityMultiplier); // gravityForce
+        }
+
+        // 4. Grapple Exploits - _LGrapple=0x210, _RGrapple=0x218
+        void* lgrapple = *(void**)((char*)pm + 0x210);
+        void* rgrapple = *(void**)((char*)pm + 0x218);
+        void* hooks[2] = { lgrapple, rgrapple };
+        for (void* hook : hooks) {
+            if (!hook || !IsValidUnityObj(hook)) continue;
+            // maxDistance=0x120, oneHookRetractForce=0x150, twoHookRetractForce=0x154
+            if (bInfiniteGrappleRange) {
+                *(float*)((char*)hook + 0x120) = 9999.0f;              // maxDistance
+            }
+            if (bSuperGrappleSpeed) {
+                *(int*)((char*)hook + 0x150) = (int)(150.0f * fGrappleSpeedMult); // oneHookRetractForce
+                *(int*)((char*)hook + 0x154) = (int)(250.0f * fGrappleSpeedMult); // twoHookRetractForce
             }
         }
     }
@@ -2992,12 +2608,25 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
     }
 
     if (g_pd3dDeviceContext && g_mainRenderTargetView && !g_Uninjecting) {
-        // Run game logic hooks safely on render thread
+        ImGui_ImplDX11_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        ImGui::NewFrame();
+
+        ImGuiIO& io = ImGui::GetIO();
+
+        // Run entity scan & game logic hooks safely on render thread
+        ScanGameEntities();
         UpdateFrameESPData();
         DoGodMode();
         ApplyWeaponStatMods();
         DoExploits();
         DoMassKill();
+        DoFastLoading();
+
+        if (bEndGameMatchTrigger) {
+            DoEndGameExploit();
+            bEndGameMatchTrigger = false;
+        }
 
         // Server & Player Crash Exploits
         if (bServerCrashActive) DoServerCrash();
@@ -3009,12 +2638,6 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
             bCrashAllPlayersNow = false;
         }
 
-        ImGui_ImplDX11_NewFrame();
-        ImGui_ImplWin32_NewFrame();
-        ImGui::NewFrame();
-
-        ImGuiIO& io = ImGui::GetIO();
-
         // ── ESP Overlay ──
         if (bEnableESP) DrawESP(io);
 
@@ -3024,10 +2647,12 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
         // ── Teleportation & Auto-Shoot Kill Aura ──
         if (bEnableTeleportKill) DoTeleportKill(io);
 
+        // ── Cursor Synchronization (Eliminates ghost/duplicate cursor on menu close) ──
+        io.MouseDrawCursor = g_ShowMenu;
+
         // ── Material UI 3 Menu ──
         if (g_ShowMenu) {
             EnsureCursorUnlocked(true);
-            io.MouseDrawCursor = true;
 
             // Direct hardware mouse position & button sync — bypasses Unity's cursor lock
             POINT pt;
@@ -3634,6 +3259,25 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
                             DoMapDestruction();
                             bMapDestructionActive = false;
                         }
+
+                        ImGui::Spacing();
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.35f, 0.85f, 1.0f, 1.0f));
+                        ImGui::Text("[*] LOADING & MATCH CONTROLS");
+                        ImGui::PopStyleColor();
+                        ImGui::Checkbox("Fast Loading & Auto-Join Optimizer", &bFastLoadingOptimizer);
+                        ImGui::TextDisabled("Instantly skips pre-game countdowns & loading blocks.");
+
+                        ImGui::Spacing();
+                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.60f, 0.25f, 0.10f, 0.90f));
+                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.85f, 0.35f, 0.15f, 1.0f));
+                        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.50f, 0.20f, 0.08f, 1.0f));
+                        if (ImGui::Button("FORCE END GAME & VICTORY EXPLOIT", ImVec2(-1, 38))) {
+                            bEndGameMatchTrigger = true;
+                        }
+                        ImGui::PopStyleColor(3);
                     }
                     ImGui::EndChild();
                 }
@@ -3754,7 +3398,7 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
                 }
 
                 // ═════════════════════════════════════════════════════════════
-                // TAB 5: LIVE LOG CAPTURER & ENGINE DIAGNOSTICS
+                // TAB 5: LIVE LOG CAPTURER & ENGINE DIAGNOSTICS & LOBBY CONTROL
                 // ═════════════════════════════════════════════════════════════
                 else if (iTopNavTab == 5) {
                     float halfWidth = (ImGui::GetContentRegionAvail().x - 12.0f) * 0.5f;
@@ -3762,17 +3406,33 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
                     // ── CARD 1: Live Game Engine & Unity Debug Log Viewer ──
                     ImGui::BeginChild("CardGameLogs", ImVec2(halfWidth, 0), true);
                     {
-                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Live Game Engine Logs (Intercepted)");
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Live Game & Cheat Tracing Console");
                         ImGui::Separator();
                         ImGui::Spacing();
 
-                        {
-                            std::lock_guard<std::mutex> lock(g_GameLogMutex);
-                            ImGui::Text("Total Intercepted Logs: %d", (int)g_GameLogs.size());
+                        static int s_LogCategoryFilter = 0; // 0: ALL, 1: CHEAT, 2: GAME, 3: LOBBY, 4: ERRORS
+                        const char* filterLabels[] = { "All Logs", "Cheat", "Game/Unity", "Lobby/Net", "Errors Only" };
+                        
+                        ImGui::Text("Filter:");
+                        ImGui::SameLine();
+                        for (int f = 0; f < 5; f++) {
+                            if (f > 0) ImGui::SameLine();
+                            bool sel = (s_LogCategoryFilter == f);
+                            if (sel) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.40f, 0.70f, 1.0f));
+                            if (ImGui::Button(filterLabels[f])) {
+                                s_LogCategoryFilter = f;
+                            }
+                            if (sel) ImGui::PopStyleColor();
                         }
 
-                        ImGui::SameLine(ImGui::GetWindowWidth() - 150.0f);
-                        if (ImGui::Button("Clear Logs", ImVec2(130, 24))) {
+                        ImGui::Spacing();
+                        {
+                            std::lock_guard<std::mutex> lock(g_GameLogMutex);
+                            ImGui::Text("Total Recorded Traces: %d", (int)g_GameLogs.size());
+                        }
+
+                        ImGui::SameLine(ImGui::GetWindowWidth() - 140.0f);
+                        if (ImGui::Button("Clear Console", ImVec2(120, 24))) {
                             std::lock_guard<std::mutex> lock(g_GameLogMutex);
                             g_GameLogs.clear();
                         }
@@ -3784,9 +3444,14 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
                         {
                             std::lock_guard<std::mutex> lock(g_GameLogMutex);
                             if (g_GameLogs.empty()) {
-                                ImGui::TextDisabled("Waiting for game engine log events / Unity exceptions...");
+                                ImGui::TextDisabled("Waiting for cheat events, lobby joins, game logs or exceptions...");
                             } else {
                                 for (const auto& entry : g_GameLogs) {
+                                    if (s_LogCategoryFilter == 1 && entry.message.find("[CHEAT]") == std::string::npos) continue;
+                                    if (s_LogCategoryFilter == 2 && entry.message.find("[GAME]") == std::string::npos) continue;
+                                    if (s_LogCategoryFilter == 3 && (entry.message.find("[LOBBY]") == std::string::npos && entry.message.find("[NETWORK]") == std::string::npos)) continue;
+                                    if (s_LogCategoryFilter == 4 && entry.type != 0 && entry.type != 4) continue;
+
                                     ImVec4 col(0.85f, 0.88f, 0.95f, 1.0f);
                                     const char* tag = "[LOG]";
                                     if (entry.type == 0 || entry.type == 4) { // Error / Exception
@@ -3798,6 +3463,9 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
                                     } else if (entry.type == 1) { // Assert
                                         col = ImVec4(1.0f, 0.60f, 0.20f, 1.0f);
                                         tag = "[ASSERT]";
+                                    } else if (entry.type == 5) { // Lobby / Net
+                                        col = ImVec4(0.35f, 0.85f, 1.00f, 1.0f);
+                                        tag = "[NET/LOBBY]";
                                     }
 
                                     ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.6f, 1.0f), "[%s]", entry.timeStr.c_str());
@@ -3816,10 +3484,42 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
 
                     ImGui::SameLine();
 
-                    // ── CARD 2: Engine Telemetry & Config Profiles ──
+                    // ── CARD 2: Engine Telemetry, Lobby Controller & Profiles ──
                     ImGui::BeginChild("CardDiagnostics", ImVec2(halfWidth, 0), true);
                     {
-                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Engine Telemetry & Profiles");
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "Lobby Controls & Telemetry");
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        uint64_t curLobby = g_Il2Cpp.GetCurrentLobbyID();
+                        ImGui::Text("Active Steam Lobby: ");
+                        ImGui::SameLine();
+                        if (curLobby != 0) {
+                            ImGui::TextColored(ImVec4(0.30f, 0.85f, 0.50f, 1.0f), "0x%llX (IN LOBBY)", (unsigned long long)curLobby);
+                        } else {
+                            ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "None (Main Menu / Searching)");
+                        }
+
+                        ImGui::Spacing();
+                        if (ImGui::Button("Host Public Lobby", ImVec2(170, 32))) {
+                            TraceLog("LOBBY", "Requesting Host Public Lobby...");
+                            g_Il2Cpp.HostLobby(false);
+                        }
+                        ImGui::SameLine();
+                        if (ImGui::Button("Host Private Lobby", ImVec2(170, 32))) {
+                            TraceLog("LOBBY", "Requesting Host Private Lobby...");
+                            g_Il2Cpp.HostLobby(true);
+                        }
+                        
+                        if (curLobby != 0) {
+                            ImGui::SameLine();
+                            if (ImGui::Button("Leave Lobby", ImVec2(130, 32))) {
+                                TraceLog("LOBBY", "Requesting Leave Lobby...");
+                                g_Il2Cpp.LeaveLobby();
+                            }
+                        }
+
+                        ImGui::Spacing();
                         ImGui::Separator();
                         ImGui::Spacing();
 
@@ -3854,13 +3554,13 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
                             ImGui::Spacing();
                         }
 
-                        if (ImGui::Button("SAVE CONFIG TO DISK", ImVec2(-1, 38))) SaveConfig();
+                        if (ImGui::Button("SAVE CONFIG TO DISK", ImVec2(-1, 36))) SaveConfig();
                         ImGui::Spacing();
-                        if (ImGui::Button("LOAD CONFIG FROM DISK", ImVec2(-1, 38))) LoadConfig();
+                        if (ImGui::Button("LOAD CONFIG FROM DISK", ImVec2(-1, 36))) LoadConfig();
                         ImGui::Spacing();
-                        if (ImGui::Button("LOAD HVH RAGE PRESET", ImVec2(-1, 38))) LoadHvHConfig();
+                        if (ImGui::Button("LOAD HVH RAGE PRESET", ImVec2(-1, 36))) LoadHvHConfig();
                         ImGui::Spacing();
-                        if (ImGui::Button("RESET TO DEFAULTS", ImVec2(-1, 34))) ResetConfigToDefaults();
+                        if (ImGui::Button("RESET TO DEFAULTS", ImVec2(-1, 32))) ResetConfigToDefaults();
 
                         ImGui::Spacing();
                         ImGui::Separator();
@@ -3869,7 +3569,6 @@ HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
                         ImGui::TextColored(ImVec4(0.35f, 0.65f, 1.00f, 1.0f), "Diagnostic Log Files:");
                         ImGui::BulletText("Game Engine Log : XUYBYA_GameEngine.log");
                         ImGui::BulletText("Cheat Engine Log: XUYBYA_Cheat.log");
-                        ImGui::BulletText("Crash Telemetry : XUYBYA_Crash.log");
                     }
                     ImGui::EndChild();
                 }
@@ -3992,6 +3691,25 @@ DWORD WINAPI InitThread(LPVOID lpParam) {
                 CheatLog("[+] DataPacker Methods: PackDir=%p, UnpackShort=%p, PackV3=%p, UnpackDir=%p",
                          g_PackDirectionMethod, g_UnpackShortMethod, g_PackVector3Method, g_UnpackDirectionMethod);
             }
+
+            // Fast Loading & Joining Classes & Methods
+            g_GameCountdownClass     = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "GameCountdown");
+            g_LevelLoaderClass       = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "LevelLoader");
+            g_PlayerEndGameClass     = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "PlayerEndGame");
+
+            if (g_GameCountdownClass) {
+                g_DisableCountdownMethod = g_Il2Cpp.FindMethod(g_GameCountdownClass, "DisableCountdown", 0);
+                CheatLog("[+] GameCountdown resolved: Class=%p, DisableCountdown=%p", g_GameCountdownClass, g_DisableCountdownMethod);
+            }
+            if (g_PlayerEndGameClass) {
+                g_DestroyPlayerMethod    = g_Il2Cpp.FindMethod(g_PlayerEndGameClass, "DestroyPlayer", 1);
+                CheatLog("[+] PlayerEndGame resolved: Class=%p, DestroyPlayer=%p", g_PlayerEndGameClass, g_DestroyPlayerMethod);
+            }
+
+            g_HealthGracePeriodClass = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "HealthGracePeriod");
+            if (g_HealthGracePeriodClass) {
+                CheatLog("[+] HealthGracePeriod resolved: Class=%p", g_HealthGracePeriodClass);
+            }
         }
     } else {
         CheatLog("[-] IL2CPP initialization failed!");
@@ -4009,33 +3727,47 @@ DWORD WINAPI InitThread(LPVOID lpParam) {
         if (g_CMDShoot) {
             cmdShootTarget = *(void**)g_CMDShoot;
         }
-        if (!cmdShootTarget && g_Il2Cpp.hGameAssembly) {
-            cmdShootTarget = (void*)((char*)g_Il2Cpp.hGameAssembly + 0x4BD500);
-        }
         if (cmdShootTarget) {
             MH_CreateHook(cmdShootTarget, (LPVOID)&hkCMDShoot, (void**)&oCMDShoot);
             CheatLog("[+] Weapon::CMDShoot hooked at 0x%p", cmdShootTarget);
         }
 
-        // Hook Unity Game Engine Debug Log and Exception Handler dynamically
-        Il2CppImage* coreImg = g_Il2Cpp.GetImage("UnityEngine.CoreModule");
-        if (!coreImg) coreImg = g_Il2Cpp.GetImage("UnityEngine");
-        if (coreImg && g_Il2Cpp.il2cpp_class_from_name && g_Il2Cpp.il2cpp_class_get_method_from_name) {
-            Il2CppClass* dbgClass = g_Il2Cpp.il2cpp_class_from_name(coreImg, "UnityEngine", "DebugLogHandler");
-            if (dbgClass) {
-                MethodInfo* mLog = (MethodInfo*)g_Il2Cpp.il2cpp_class_get_method_from_name(dbgClass, "Internal_Log", 4);
+        // Hook Unity DebugLogHandler to capture all engine events and exceptions
+        Il2CppImage* coreMod = g_Il2Cpp.GetImage("UnityEngine.CoreModule");
+        if (coreMod) {
+            Il2CppClass* dlhClass = g_Il2Cpp.il2cpp_class_from_name(coreMod, "UnityEngine", "DebugLogHandler");
+            if (dlhClass) {
+                MethodInfo* mLog = g_Il2Cpp.FindMethod(dlhClass, "Internal_Log", 4);
+                MethodInfo* mExc = g_Il2Cpp.FindMethod(dlhClass, "Internal_LogException", 2);
                 if (mLog && *(void**)mLog) {
                     MH_CreateHook(*(void**)mLog, (LPVOID)&hkInternal_Log, (void**)&oInternal_Log);
-                    CheatLog("[+] UnityEngine.DebugLogHandler::Internal_Log hooked at 0x%p", *(void**)mLog);
+                    TraceLog("UNITY", "[+] Unity DebugLogHandler::Internal_Log hooked at 0x%p", *(void**)mLog);
                 }
-                MethodInfo* mExc = (MethodInfo*)g_Il2Cpp.il2cpp_class_get_method_from_name(dbgClass, "Internal_LogException", 2);
                 if (mExc && *(void**)mExc) {
                     MH_CreateHook(*(void**)mExc, (LPVOID)&hkInternal_LogException, (void**)&oInternal_LogException);
-                    CheatLog("[+] UnityEngine.DebugLogHandler::Internal_LogException hooked at 0x%p", *(void**)mExc);
+                    TraceLog("UNITY", "[+] Unity DebugLogHandler::Internal_LogException hooked at 0x%p", *(void**)mExc);
                 }
             }
         }
 
+        // Hook BootstrapManager Lobby Callbacks
+        if (g_Il2Cpp.classBootstrapManager) {
+            MethodInfo* mOnEnter = g_Il2Cpp.FindMethod(g_Il2Cpp.classBootstrapManager, "OnLobbyEntered", 1);
+            MethodInfo* mOnCreate = g_Il2Cpp.FindMethod(g_Il2Cpp.classBootstrapManager, "OnLobbyCreated", 1);
+            MethodInfo* mOnKick = g_Il2Cpp.FindMethod(g_Il2Cpp.classBootstrapManager, "OnLobbyKicked", 1);
+            if (mOnEnter && *(void**)mOnEnter) {
+                MH_CreateHook(*(void**)mOnEnter, (LPVOID)&hkOnLobbyEntered, (void**)&oOnLobbyEntered);
+                TraceLog("LOBBY", "[+] BootstrapManager::OnLobbyEntered hooked at 0x%p", *(void**)mOnEnter);
+            }
+            if (mOnCreate && *(void**)mOnCreate) {
+                MH_CreateHook(*(void**)mOnCreate, (LPVOID)&hkOnLobbyCreated, (void**)&oOnLobbyCreated);
+                TraceLog("LOBBY", "[+] BootstrapManager::OnLobbyCreated hooked at 0x%p", *(void**)mOnCreate);
+            }
+            if (mOnKick && *(void**)mOnKick) {
+                MH_CreateHook(*(void**)mOnKick, (LPVOID)&hkOnLobbyKicked, (void**)&oOnLobbyKicked);
+                TraceLog("LOBBY", "[+] BootstrapManager::OnLobbyKicked hooked at 0x%p", *(void**)mOnKick);
+            }
+        }
 
         MH_EnableHook(MH_ALL_HOOKS);
         CheatLog("[+] All MinHook detours enabled successfully.");

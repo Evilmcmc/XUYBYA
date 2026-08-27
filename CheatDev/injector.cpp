@@ -235,14 +235,15 @@ static bool Inject(DWORD pid, const char* dllPath, HANDLE* outProcessHandle) {
     CloseHandle(hThread);
     VirtualFreeEx(hProc, remotePath, 0, MEM_RELEASE);
 
-    if (exitCode == 0) {
+    // Verify DLL was loaded via module snapshot (handles full 64-bit base addresses)
+    if (!IsDLLLoaded(pid, "Cheat.dll") && exitCode == 0) {
         printf(C_RED "[FAILED] (LoadLibrary returned NULL / 0x0)\n" C_RESET);
         InjectorLog("[-] LoadLibrary returned NULL in target process!");
         CloseHandle(hProc);
         return false;
     }
-    printf(C_GREEN "[OK] (Module Base: 0x%lX)\n" C_RESET, exitCode);
-    InjectorLog("[+] Injection successful! Cheat Module Base in target: 0x%lX", exitCode);
+    printf(C_GREEN "[OK] (Module Loaded Successfully)\n" C_RESET);
+    InjectorLog("[+] Injection successful! Cheat.dll active in target PID %lu", pid);
 
     if (outProcessHandle) {
         *outProcessHandle = hProc;
