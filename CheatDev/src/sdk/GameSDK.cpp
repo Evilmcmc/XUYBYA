@@ -132,14 +132,33 @@ void SDK::ResetCache() {
 void* SDK::GetCurrentCamera() {
     void* cam = nullptr;
 
-    // 1. Primary: Unity's Camera.main
-    cam = g_Il2Cpp.GetMainCamera();
-    if (cam && IsValidUnityObj(cam)) {
-        g_CachedCamera = cam;
-        return g_CachedCamera;
+    // 1. PRIMARY: Local Player's actual dynamic gameplay camera (moves & rotates with player!)
+    if (g_HasLocalPlayer && g_LocalPlayerInfo.playerMovement && IsValidUnityObj(g_LocalPlayerInfo.playerMovement)) {
+        void* rCamCtrl = *(void**)((char*)g_LocalPlayerInfo.playerMovement + 0x220);
+        if (rCamCtrl && IsValidUnityObj(rCamCtrl)) {
+            void* rCam = *(void**)((char*)rCamCtrl + 0x140);
+            if (rCam && IsValidUnityObj(rCam)) {
+                g_CachedCamera = rCam;
+                return g_CachedCamera;
+            }
+        }
     }
 
-    // 2. Billboard.cam (0x30) - In-game active HUD camera
+    // 2. SECONDARY: Local Player's SharedReferences.playerCamera (0xF8)
+    if (g_HasLocalPlayer && g_LocalPlayerInfo.playerObj && IsValidUnityObj(g_LocalPlayerInfo.playerObj)) {
+        if (SharedRefClass) {
+            void* sRef = g_Il2Cpp.GetComponent(g_LocalPlayerInfo.playerObj, SharedRefClass);
+            if (sRef && IsValidUnityObj(sRef)) {
+                void* pCam = *(void**)((char*)sRef + 0xF8);
+                if (pCam && IsValidUnityObj(pCam)) {
+                    g_CachedCamera = pCam;
+                    return g_CachedCamera;
+                }
+            }
+        }
+    }
+
+    // 3. TERTIARY: Billboard.cam (0x30)
     if (BillboardClass) {
         Il2CppArray* bbArr = g_Il2Cpp.FindObjectsOfType(BillboardClass);
         if (bbArr && IsValidMemPtr(bbArr, 0x28)) {
@@ -160,34 +179,16 @@ void* SDK::GetCurrentCamera() {
         }
     }
 
-    // 3. Secondary: SharedReferences.playerCamera (0xF8) from Local Player
-    if (g_HasLocalPlayer && g_LocalPlayerInfo.playerObj && IsValidUnityObj(g_LocalPlayerInfo.playerObj)) {
-        if (SharedRefClass) {
-            void* sRef = g_Il2Cpp.GetComponent(g_LocalPlayerInfo.playerObj, SharedRefClass);
-            if (sRef && IsValidUnityObj(sRef)) {
-                void* pCam = *(void**)((char*)sRef + 0xF8);
-                if (pCam && IsValidUnityObj(pCam)) {
-                    g_CachedCamera = pCam;
-                    return g_CachedCamera;
-                }
-            }
-        }
-    }
-
-    // 4. Fallback: PlayerMovement._cam->cam
-    if (g_HasLocalPlayer && g_LocalPlayerInfo.playerMovement && IsValidUnityObj(g_LocalPlayerInfo.playerMovement)) {
-        void* rCamCtrl = *(void**)((char*)g_LocalPlayerInfo.playerMovement + 0x220);
-        if (rCamCtrl && IsValidUnityObj(rCamCtrl)) {
-            void* rCam = *(void**)((char*)rCamCtrl + 0x140);
-            if (rCam && IsValidUnityObj(rCam)) {
-                g_CachedCamera = rCam;
-                return g_CachedCamera;
-            }
-        }
+    // 4. FALLBACK: Scene Camera.main (used when dead, spectating, or in lobby)
+    cam = g_Il2Cpp.GetMainCamera();
+    if (cam && IsValidUnityObj(cam)) {
+        g_CachedCamera = cam;
+        return g_CachedCamera;
     }
 
     return g_CachedCamera;
 }
+
 
 
 
