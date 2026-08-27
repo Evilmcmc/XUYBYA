@@ -102,11 +102,12 @@ float fMassKillInterval   = 80.0f;
 int   iMassKillMode       = 1;
 
 int   iSelectedWeaponIndex= 0;
-bool  bInfiniteAmmo       = true;
-bool  bOneHitKillDamage   = true;
-bool  bRapidFire          = true;
-bool  bInfiniteRange      = true;
-bool  bWeaponSpawnBypass  = true;
+bool  bInfiniteAmmo       = false;
+bool  bOneHitKillDamage   = false;
+bool  bRapidFire          = false;
+bool  bInfiniteRange      = false;
+bool  bWeaponSpawnBypass  = false;
+
 
 bool  bEnableSpeedhack       = false;
 float fSpeedMultiplier       = 2.5f;
