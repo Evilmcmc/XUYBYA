@@ -129,83 +129,25 @@ void SDK::ResetCache() {
 
 void* SDK::GetCurrentCamera() {
     ULONGLONG now = GetTickCount64();
-    if (g_CachedCamera && IsValidUnityObj(g_CachedCamera) && (now - g_LastCameraCheckTime < 150)) {
+    if (g_CachedCamera && IsValidUnityObj(g_CachedCamera) && (now - g_LastCameraCheckTime < 100)) {
         return g_CachedCamera;
     }
     g_LastCameraCheckTime = now;
 
     void* cam = nullptr;
 
-    // 1. Prioritize Local PlayerMovement -> _cam -> cam
-    if (PlayerMovementClass) {
-        Il2CppArray* pmArr = g_Il2Cpp.FindObjectsOfType(PlayerMovementClass);
-        if (pmArr && IsValidMemPtr(pmArr, 0x28)) {
-            uintptr_t cnt = *(uintptr_t*)((char*)pmArr + 0x18);
-            if (cnt > 0 && cnt <= 64) {
-                void** items = (void**)((char*)pmArr + 0x20);
-                for (uintptr_t i = 0; i < cnt; i++) {
-                    if (items[i] && g_Il2Cpp.IsLocalPlayer(items[i])) {
-                        void* rCamCtrl = *(void**)((char*)items[i] + 0x220);
-                        if (rCamCtrl && IsValidUnityObj(rCamCtrl)) {
-                            void* rCam = *(void**)((char*)rCamCtrl + 0x140);
-                            if (rCam && IsValidUnityObj(rCam)) {
-                                cam = rCam;
-                                break;
-                            }
-                        }
-                    }
-                }
+    // 1. Direct fast retrieval from cached Local PlayerMovement -> _cam (0x220) -> cam (0x140)
+    if (g_HasLocalPlayer && g_LocalPlayerInfo.playerMovement && IsValidUnityObj(g_LocalPlayerInfo.playerMovement)) {
+        void* rCamCtrl = *(void**)((char*)g_LocalPlayerInfo.playerMovement + 0x220);
+        if (rCamCtrl && IsValidUnityObj(rCamCtrl)) {
+            void* rCam = *(void**)((char*)rCamCtrl + 0x140);
+            if (rCam && IsValidUnityObj(rCam)) {
+                cam = rCam;
             }
         }
     }
 
-    // 2. Prioritize Local RagdollCameraController -> cam
-    if (!cam && RagdollCamClass) {
-        Il2CppArray* camArr = g_Il2Cpp.FindObjectsOfType(RagdollCamClass);
-        if (camArr && IsValidMemPtr(camArr, 0x28)) {
-            uintptr_t cnt = *(uintptr_t*)((char*)camArr + 0x18);
-            if (cnt > 0 && cnt <= 64) {
-                void** items = (void**)((char*)camArr + 0x20);
-                for (uintptr_t i = 0; i < cnt; i++) {
-                    if (items[i] && g_Il2Cpp.IsLocalPlayer(items[i])) {
-                        void* rCam = *(void**)((char*)items[i] + 0x140);
-                        if (rCam && IsValidUnityObj(rCam)) {
-                            cam = rCam;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // 3. Prioritize Local Player -> PlayerMovement -> _cam -> cam
-    if (!cam && PlayerClass && PlayerMovementClass) {
-        Il2CppArray* pArr = g_Il2Cpp.FindObjectsOfType(PlayerClass);
-        if (pArr && IsValidMemPtr(pArr, 0x28)) {
-            uintptr_t cnt = *(uintptr_t*)((char*)pArr + 0x18);
-            if (cnt > 0 && cnt <= 64) {
-                void** items = (void**)((char*)pArr + 0x20);
-                for (uintptr_t i = 0; i < cnt; i++) {
-                    if (items[i] && g_Il2Cpp.IsLocalPlayer(items[i])) {
-                        void* pm = g_Il2Cpp.GetComponent(items[i], PlayerMovementClass);
-                        if (pm && IsValidUnityObj(pm)) {
-                            void* rCamCtrl = *(void**)((char*)pm + 0x220);
-                            if (rCamCtrl && IsValidUnityObj(rCamCtrl)) {
-                                void* rCam = *(void**)((char*)rCamCtrl + 0x140);
-                                if (rCam && IsValidUnityObj(rCam)) {
-                                    cam = rCam;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // 4. Fallback to Camera.main / current / allCameras (only when dead, spectating, or in menu)
+    // 2. Fallback to Camera.main
     if (!cam || !IsValidUnityObj(cam)) {
         cam = g_Il2Cpp.GetMainCamera();
     }
@@ -215,7 +157,6 @@ void* SDK::GetCurrentCamera() {
     }
     return g_CachedCamera;
 }
-
 
 void SDK::OptimizePerformance() {
     static bool s_Optimized = false;
@@ -273,14 +214,14 @@ void SDK::ScanEntities() {
 
         for (uintptr_t i = 0; i < count; i++) {
             void* p = items[i];
-            if (!IsValidUnityObj(p)) continue;
+            if (!p || !IsValidUnityObj(p)) continue;
             
-            // p is a Component (Player), we need its GameObject to check activeInHierarchy
+            // p is a Component (Player), check active in hierarchy
             void* go = nullptr;
             if (g_Il2Cpp.methodComponentGetGameObject) {
                 go = g_Il2Cpp.il2cpp_runtime_invoke(g_Il2Cpp.methodComponentGetGameObject, p, nullptr, nullptr);
             }
-            if (!go || !g_Il2Cpp.IsGameObjectActiveInHierarchy(go)) continue;
+            if (!go || !IsValidUnityObj(go) || !g_Il2Cpp.IsGameObjectActiveInHierarchy(go)) continue;
 
             CachedPlayerInfo info{};
             info.playerObj = p;
@@ -343,31 +284,6 @@ void SDK::ScanEntities() {
 
             if (PlayerBountyUpdateClass) {
                 info.bountyComp = g_Il2Cpp.GetComponent(p, PlayerBountyUpdateClass);
-                if (info.bountyComp && IsValidUnityObj(info.bountyComp)) {
-                    // Update in-game 3D Outline / Silhouette shaders on player mesh
-                    void* outlinesArr = *(void**)((char*)info.bountyComp + 0x128); // outlines (PhysicalOutline[])
-                    if (outlinesArr && IsValidMemPtr(outlinesArr, 0x28)) {
-                        uintptr_t cnt = *(uintptr_t*)((char*)outlinesArr + 0x18);
-                        if (cnt > 0 && cnt <= 16) {
-                            void** outlineItems = (void**)((char*)outlinesArr + 0x20);
-                            for (uintptr_t k = 0; k < cnt; k++) {
-                                void* outline = outlineItems[k];
-                                if (outline && IsValidUnityObj(outline)) {
-                                    if (bEnableChams) {
-                                        *(int*)((char*)outline + 0x20) = (iChamsStyle == 1) ? 1 : 3; // OutlineAndSilhouette
-                                        float* c = info.isEnemy ? colChamsEnemyVis : colChamsTeamVis;
-                                        *(float*)((char*)outline + 0x24) = c[0];
-                                        *(float*)((char*)outline + 0x28) = c[1];
-                                        *(float*)((char*)outline + 0x2C) = c[2];
-                                        *(float*)((char*)outline + 0x30) = c[3];
-                                        *(float*)((char*)outline + 0x34) = fChamsJointSize * 3.5f;
-                                        *(bool*)((char*)outline + 0x68) = true; // needsUpdate
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
             }
 
             if (WeaponManagerClass) {
@@ -415,20 +331,11 @@ void SDK::ScanEntities() {
                 }
             }
 
-            info.isLocal = g_Il2Cpp.IsLocalPlayer(p);
-            if (!info.isLocal && info.playerMovement) {
-                void* hud = *(void**)((char*)info.playerMovement + 0x1D0); // HUD
-                void* camCtrl = *(void**)((char*)info.playerMovement + 0x220); // _cam
-                void* playerInput = *(void**)((char*)info.playerMovement + 0xF8); // playerInput
-                if (hud != nullptr || camCtrl != nullptr || playerInput != nullptr) {
-                    info.isLocal = true;
-                }
-            }
-
             if (info.isLocal) {
                 foundLocal = true;
                 localInfo = info;
             }
+
             newPlayers.push_back(info);
         }
 
@@ -439,13 +346,13 @@ void SDK::ScanEntities() {
                 if (pl.isLocal) {
                     pl.isEnemy = false;
                 } else {
-                    pl.isEnemy = true;
+                    pl.isEnemy = (pl.awayTeam != localInfo.awayTeam);
                 }
             }
         } else {
             g_HasLocalPlayer = false;
             for (auto& pl : newPlayers) {
-                pl.isEnemy = !pl.isLocal;
+                pl.isEnemy = true;
             }
         }
 
@@ -455,7 +362,6 @@ void SDK::ScanEntities() {
         ResetCache();
     }
 }
-
 
 void SDK::ResolveBoneSafe(void* mainCam, void* rbPtr, BonePoint& outBone) {
     outBone.valid = false;
