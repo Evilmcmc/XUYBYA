@@ -74,7 +74,7 @@ static void hkCMDShoot(void* __this, void* _cameraPosition, void* _cameraForward
         return;
     }
 
-    __try {
+    try {
         if (bEnableSilentAim) {
             Vector3 targetPos{};
             if (Combat::GetSilentAimTargetPosition(&targetPos)) {
@@ -112,7 +112,7 @@ static void hkCMDShoot(void* __this, void* _cameraPosition, void* _cameraForward
             }
         }
     }
-    __except (EXCEPTION_EXECUTE_HANDLER) {}
+    catch (...) {}
 
     if (oCMDShoot) {
         oCMDShoot(__this, _cameraPosition, _cameraForward, tick, method);

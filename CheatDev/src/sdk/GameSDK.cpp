@@ -247,7 +247,7 @@ void SDK::ScanEntities() {
 
     if (!PlayerClass) return;
 
-    __try {
+    try {
         g_Il2Cpp.EnsureThreadAttached();
         Il2CppArray* arr = g_Il2Cpp.FindObjectsOfType(PlayerClass);
         if (!arr || !IsValidMemPtr(arr, 0x28)) {
@@ -274,7 +274,13 @@ void SDK::ScanEntities() {
         for (uintptr_t i = 0; i < count; i++) {
             void* p = items[i];
             if (!IsValidUnityObj(p)) continue;
-            if (!g_Il2Cpp.IsGameObjectActiveInHierarchy(p)) continue;
+            
+            // p is a Component (Player), we need its GameObject to check activeInHierarchy
+            void* go = nullptr;
+            if (g_Il2Cpp.methodComponentGetGameObject) {
+                go = g_Il2Cpp.il2cpp_runtime_invoke(g_Il2Cpp.methodComponentGetGameObject, p, nullptr, nullptr);
+            }
+            if (!go || !g_Il2Cpp.IsGameObjectActiveInHierarchy(go)) continue;
 
             CachedPlayerInfo info{};
             info.playerObj = p;
@@ -445,7 +451,7 @@ void SDK::ScanEntities() {
 
         g_CachedPlayers = newPlayers;
     }
-    __except(EXCEPTION_EXECUTE_HANDLER) {
+    catch (...) {
         ResetCache();
     }
 }
@@ -455,7 +461,7 @@ void SDK::ResolveBoneSafe(void* mainCam, void* rbPtr, BonePoint& outBone) {
     outBone.valid = false;
     if (!rbPtr || !mainCam || !IsValidUnityObj(mainCam)) return;
 
-    __try {
+    try {
         if (g_Il2Cpp.GetRigidbodyPosition(rbPtr, &outBone.world)) {
             if (fabsf(outBone.world.x) < 0.001f && fabsf(outBone.world.y) < 0.001f && fabsf(outBone.world.z) < 0.001f)
                 return;
@@ -476,7 +482,7 @@ void SDK::ResolveBoneSafe(void* mainCam, void* rbPtr, BonePoint& outBone) {
             }
         }
     }
-    __except(EXCEPTION_EXECUTE_HANDLER) {
+    catch (...) {
         outBone.valid = false;
     }
 }
@@ -493,7 +499,7 @@ void SDK::UpdateESPData() {
         return;
     }
 
-    __try {
+    try {
         ImGuiIO& io = ImGui::GetIO();
         float sw = io.DisplaySize.x;
         float sh = io.DisplaySize.y;
@@ -648,7 +654,7 @@ void SDK::UpdateESPData() {
 
         g_ESPData = std::move(newData);
     }
-    __except(EXCEPTION_EXECUTE_HANDLER) {
+    catch (...) {
         g_ESPData.clear();
     }
 }

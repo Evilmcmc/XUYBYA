@@ -163,7 +163,7 @@ bool Combat::GetSilentAimTargetPosition(Vector3* outTargetPos) {
 void Combat::DoMassKill() {
     if (!bEnableMassKill || !g_HasLocalPlayer) return;
 
-    __try {
+    try {
         ULONGLONG now = GetTickCount64();
         if (now - g_LastMassKillTime < (ULONGLONG)fMassKillInterval) return;
         g_LastMassKillTime = now;
@@ -263,14 +263,14 @@ void Combat::DoMassKill() {
             CheatLog("[PACKET-KILL] Annihilated %d player(s) via server packets", killedCount);
         }
     }
-    __except(EXCEPTION_EXECUTE_HANDLER) {}
+    catch (...) {}
 }
 
 void Combat::DoTeleportKill(ImGuiIO& /*io*/) {
     if (!bEnableTeleportKill || !g_HasLocalPlayer) return;
     if (bTeleportHoldKey && !IsKeyActive(iTeleportKey)) return;
 
-    __try {
+    try {
         std::vector<const CachedPlayerInfo*> validEnemies;
         for (const auto& pl : g_CachedPlayers) {
             if (pl.isEnemy && !pl.isDead && pl.hp > 0 && IsValidUnityObj(pl.playerObj)) {
@@ -340,7 +340,7 @@ void Combat::DoTeleportKill(ImGuiIO& /*io*/) {
             }
         }
     }
-    __except(EXCEPTION_EXECUTE_HANDLER) {}
+    catch (...) {}
 }
 
 void Combat::DoTriggerbot() {

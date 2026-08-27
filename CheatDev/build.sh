@@ -15,13 +15,13 @@ fi
 # ─── Detect compiler ─────────────────────────────────────────────────────────
 # On Windows: use Windhawk clang (AppLocker-safe, signed, in Program Files)
 # On Linux:   use x86_64-w64-mingw32-g++ cross-compiler
-WINDHAWK_CLANG="/c/Program Files/Windhawk/Compiler/bin/clang++.exe"
+WINDHAWK_CLANG="/c/Program Files/Windhawk/Compiler/bin/x86_64-w64-mingw32-g++.exe"
 MINGW_GXX="x86_64-w64-mingw32-g++"
 
 if [ -f "$WINDHAWK_CLANG" ]; then
     echo "[*] Using Windhawk clang (Windows)"
-    CXX="$WINDHAWK_CLANG"
-    TARGET_FLAGS="-fuse-ld=lld -target x86_64-w64-mingw32"
+    CXX="clang++"
+    TARGET_FLAGS="-fuse-ld=lld --target=x86_64-w64-windows-gnu"
     EXTRA_FLAGS=""
 else
     echo "[*] Using MinGW cross-compiler (Linux)"
@@ -31,7 +31,7 @@ else
 fi
 
 FLAGS="$TARGET_FLAGS -shared -static-libgcc -static-libstdc++ -O2 -std=c++17"
-INCLUDES="-Iimgui -Iimgui/backends -Iminhook/include"
+INCLUDES="-I. -Iimgui -Iimgui/backends -Iminhook/include"
 LIBS="-ld3d11 -ldxgi -lgdi32 -ldwmapi -ld3dcompiler"
 
 IMGUI_SRC="imgui/imgui.cpp \
@@ -50,8 +50,15 @@ MINHOOK_SRC="minhook/src/buffer.c \
 
 # ─── Build Cheat.dll ──────────────────────────────────────────────────────────
 echo "[*] Compiling Cheat.dll..."
-"$CXX" $FLAGS $INCLUDES \
+"$CXX" $FLAGS $INCLUDES -Isrc \
     dllmain.cpp \
+    src/core/Config.cpp \
+    src/sdk/GameSDK.cpp \
+    src/hooks/Hooks.cpp \
+    src/features/Combat.cpp \
+    src/features/Exploits.cpp \
+    src/features/Visuals.cpp \
+    src/gui/Menu.cpp \
     $IMGUI_SRC \
     $MINHOOK_SRC \
     -o Cheat.dll \

@@ -1,0 +1,93 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Assembly-CSharp</AssemblyName>
+    <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
+    <TargetFramework>net40</TargetFramework>
+  </PropertyGroup>
+  <PropertyGroup>
+    <LangVersion>Preview</LangVersion>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup />
+  <ItemGroup />
+  <ItemGroup>
+    <Reference Include="Il2CppDummyDll">
+      <HintPath>../dumper/dumper_extracted/DummyDll/Il2CppDummyDll.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>../dumper/dumper_extracted/DummyDll/UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+    <Reference Include="FishNet.Runtime">
+      <HintPath>../dumper/dumper_extracted/DummyDll/FishNet.Runtime.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>../dumper/dumper_extracted/DummyDll/UnityEngine.UI.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Core">
+      <HintPath>../dumper/dumper_extracted/DummyDll/System.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AssetBundleModule">
+      <HintPath>../dumper/dumper_extracted/DummyDll/UnityEngine.AssetBundleModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>../dumper/dumper_extracted/DummyDll/UnityEngine.AudioModule.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.Localization">
+      <HintPath>../dumper/dumper_extracted/DummyDll/Unity.Localization.dll</HintPath>
+    </Reference>
+    <Reference Include="com.rlabrecque.steamworks.net">
+      <HintPath>../dumper/dumper_extracted/DummyDll/com.rlabrecque.steamworks.net.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>../dumper/dumper_extracted/DummyDll/Unity.TextMeshPro.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>../dumper/dumper_extracted/DummyDll/UnityEngine.PhysicsModule.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.InputSystem">
+      <HintPath>../dumper/dumper_extracted/DummyDll/Unity.InputSystem.dll</HintPath>
+    </Reference>
+    <Reference Include="LeTai.TranslucentImage">
+      <HintPath>../dumper/dumper_extracted/DummyDll/LeTai.TranslucentImage.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule">
+      <HintPath>../dumper/dumper_extracted/DummyDll/UnityEngine.ParticleSystemModule.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.RenderPipelines.Core.Runtime">
+      <HintPath>../dumper/dumper_extracted/DummyDll/Unity.RenderPipelines.Core.Runtime.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>../dumper/dumper_extracted/DummyDll/UnityEngine.AnimationModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.VideoModule">
+      <HintPath>../dumper/dumper_extracted/DummyDll/UnityEngine.VideoModule.dll</HintPath>
+    </Reference>
+    <Reference Include="GPUInstancer">
+      <HintPath>../dumper/dumper_extracted/DummyDll/GPUInstancer.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>../dumper/dumper_extracted/DummyDll/UnityEngine.UIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>../dumper/dumper_extracted/DummyDll/UnityEngine.IMGUIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.Addressables">
+      <HintPath>../dumper/dumper_extracted/DummyDll/Unity.Addressables.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.ResourceManager">
+      <HintPath>../dumper/dumper_extracted/DummyDll/Unity.ResourceManager.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TerrainModule">
+      <HintPath>../dumper/dumper_extracted/DummyDll/UnityEngine.TerrainModule.dll</HintPath>
+    </Reference>
+    <Reference Include="DOTween">
+      <HintPath>../dumper/dumper_extracted/DummyDll/DOTween.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.Physics2DModule">
+      <HintPath>../dumper/dumper_extracted/DummyDll/UnityEngine.Physics2DModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule">
+      <HintPath>../dumper/dumper_extracted/DummyDll/UnityEngine.UnityWebRequestModule.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>

@@ -255,22 +255,22 @@ static DWORD WINAPI InitThread(LPVOID lpParam) {
 
     Sleep(1200);
 
-    __try {
+    try {
         if (SDK::Initialize()) {
             CheatLog("[+] SDK and IL2CPP Initialized.");
         }
     }
-    __except(EXCEPTION_EXECUTE_HANDLER) {
-        CheatLog("[-] SDK::Initialize caught exception 0x%08X", GetExceptionCode());
+    catch (...) {
+        CheatLog("[-] SDK::Initialize caught exception");
     }
 
-    __try {
+    try {
         if (Hooks::Initialize()) {
             CheatLog("[+] Hooks Installed. Ready for battle!");
         }
     }
-    __except(EXCEPTION_EXECUTE_HANDLER) {
-        CheatLog("[-] Hooks::Initialize caught exception 0x%08X", GetExceptionCode());
+    catch (...) {
+        CheatLog("[-] Hooks::Initialize caught exception");
     }
 
     Config::Load();

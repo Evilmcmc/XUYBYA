@@ -1,0 +1,145 @@
+{
+  "version": 3,
+  "targets": {
+    "net6.0": {
+      "ilspycmd/7.2.1.6856": {
+        "type": "package"
+      }
+    },
+    "net6.0/any": {
+      "ilspycmd/7.2.1.6856": {
+        "type": "package",
+        "tools": {
+          "tools/net6.0/any/DotnetToolSettings.xml": {},
+          "tools/net6.0/any/ICSharpCode.Decompiler.dll": {},
+          "tools/net6.0/any/ICSharpCode.Decompiler.xml": {},
+          "tools/net6.0/any/McMaster.Extensions.CommandLineUtils.dll": {},
+          "tools/net6.0/any/Mono.Cecil.Mdb.dll": {},
+          "tools/net6.0/any/Mono.Cecil.Pdb.dll": {},
+          "tools/net6.0/any/Mono.Cecil.Rocks.dll": {},
+          "tools/net6.0/any/Mono.Cecil.dll": {},
+          "tools/net6.0/any/ilspycmd.deps.json": {},
+          "tools/net6.0/any/ilspycmd.dll": {},
+          "tools/net6.0/any/ilspycmd.pdb": {},
+          "tools/net6.0/any/ilspycmd.runtimeconfig.json": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "ilspycmd/7.2.1.6856": {
+      "sha512": "h0uDRDHE4ha/xWLvrFbkQVvW8C8rniwG8/3Ec8dRqlxB33Hx3bWR7O06k73HP9G8Tciup9Z4o0Z2inTGrjsXOQ==",
+      "type": "package",
+      "path": "ilspycmd/7.2.1.6856",
+      "hasTools": true,
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "ILSpyCmdNuGetPackageIcon.png",
+        "ilspycmd.7.2.1.6856.nupkg.sha512",
+        "ilspycmd.nuspec",
+        "tools/net6.0/any/DotnetToolSettings.xml",
+        "tools/net6.0/any/ICSharpCode.Decompiler.dll",
+        "tools/net6.0/any/ICSharpCode.Decompiler.xml",
+        "tools/net6.0/any/McMaster.Extensions.CommandLineUtils.dll",
+        "tools/net6.0/any/Mono.Cecil.Mdb.dll",
+        "tools/net6.0/any/Mono.Cecil.Pdb.dll",
+        "tools/net6.0/any/Mono.Cecil.Rocks.dll",
+        "tools/net6.0/any/Mono.Cecil.dll",
+        "tools/net6.0/any/ilspycmd.deps.json",
+        "tools/net6.0/any/ilspycmd.dll",
+        "tools/net6.0/any/ilspycmd.pdb",
+        "tools/net6.0/any/ilspycmd.runtimeconfig.json",
+        "tools/netcoreapp3.1/any/DotnetToolSettings.xml",
+        "tools/netcoreapp3.1/any/ICSharpCode.Decompiler.dll",
+        "tools/netcoreapp3.1/any/ICSharpCode.Decompiler.xml",
+        "tools/netcoreapp3.1/any/McMaster.Extensions.CommandLineUtils.dll",
+        "tools/netcoreapp3.1/any/Microsoft.Win32.Registry.dll",
+        "tools/netcoreapp3.1/any/Mono.Cecil.Mdb.dll",
+        "tools/netcoreapp3.1/any/Mono.Cecil.Pdb.dll",
+        "tools/netcoreapp3.1/any/Mono.Cecil.Rocks.dll",
+        "tools/netcoreapp3.1/any/Mono.Cecil.dll",
+        "tools/netcoreapp3.1/any/System.Collections.Immutable.dll",
+        "tools/netcoreapp3.1/any/System.ComponentModel.Annotations.dll",
+        "tools/netcoreapp3.1/any/System.Reflection.Metadata.dll",
+        "tools/netcoreapp3.1/any/System.Security.AccessControl.dll",
+        "tools/netcoreapp3.1/any/System.Security.Principal.Windows.dll",
+        "tools/netcoreapp3.1/any/ilspycmd.deps.json",
+        "tools/netcoreapp3.1/any/ilspycmd.dll",
+        "tools/netcoreapp3.1/any/ilspycmd.pdb",
+        "tools/netcoreapp3.1/any/ilspycmd.runtimeconfig.json",
+        "tools/netcoreapp3.1/any/runtimes/unix/lib/netcoreapp2.1/System.Security.Principal.Windows.dll",
+        "tools/netcoreapp3.1/any/runtimes/win/lib/netcoreapp2.0/System.Security.AccessControl.dll",
+        "tools/netcoreapp3.1/any/runtimes/win/lib/netcoreapp2.1/System.Security.Principal.Windows.dll",
+        "tools/netcoreapp3.1/any/runtimes/win/lib/netstandard2.0/Microsoft.Win32.Registry.dll"
+      ]
+    }
+  },
+  "projectFileDependencyGroups": {
+    "net6.0": [
+      "ilspycmd >= 7.2.1.6856"
+    ]
+  },
+  "packageFolders": {
+    "/home/rawret/XUYBYA/dotnet_tools/.store/.stage/w1zjy5mz.cfr": {}
+  },
+  "project": {
+    "version": "1.0.0",
+    "restore": {
+      "projectUniqueName": "/tmp/d398ab89-d632-4c42-a5c3-662f577a1ee0/restore.csproj",
+      "projectName": "restore",
+      "projectPath": "/tmp/d398ab89-d632-4c42-a5c3-662f577a1ee0/restore.csproj",
+      "packagesPath": "/home/rawret/XUYBYA/dotnet_tools/.store/.stage/w1zjy5mz.cfr",
+      "outputPath": "/home/rawret/XUYBYA/dotnet_tools/.store/.stage/w1zjy5mz.cfr/",
+      "projectStyle": "DotnetToolReference",
+      "configFilePaths": [
+        "/home/rawret/.nuget/NuGet/NuGet.Config"
+      ],
+      "originalTargetFrameworks": [
+        "net6.0"
+      ],
+      "sources": {
+        "https://api.nuget.org/v3/index.json": {}
+      },
+      "frameworks": {
+        "net6.0": {
+          "targetAlias": "net6.0",
+          "projectReferences": {}
+        }
+      },
+      "warningProperties": {
+        "warnAsError": [
+          "NU1605"
+        ]
+      }
+    },
+    "frameworks": {
+      "net6.0": {
+        "targetAlias": "net6.0",
+        "dependencies": {
+          "ilspycmd": {
+            "target": "Package",
+            "version": "[7.2.1.6856, )"
+          }
+        },
+        "imports": [
+          "net461",
+          "net462",
+          "net47",
+          "net471",
+          "net472",
+          "net48",
+          "net481"
+        ],
+        "assetTargetFallback": true,
+        "warn": true,
+        "runtimeIdentifierGraphPath": "/home/rawret/XUYBYA/dotnet_runtime/sdk/6.0.428/RuntimeIdentifierGraph.json"
+      }
+    },
+    "runtimes": {
+      "any": {
+        "#import": []
+      }
+    }
+  }
+}

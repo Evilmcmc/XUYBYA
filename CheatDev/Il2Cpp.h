@@ -35,7 +35,7 @@ inline bool IsValidMemPtr(const void* ptr, size_t size = 8) {
     uintptr_t u = (uintptr_t)ptr;
     if (u < 0x10000 || u >= 0x7FFFFFFFFFFF) return false;
 
-    __try {
+    try {
         volatile char c1 = *(const volatile char*)ptr;
         if (size > 1) {
             volatile char c2 = *((const volatile char*)ptr + size - 1);
@@ -44,26 +44,26 @@ inline bool IsValidMemPtr(const void* ptr, size_t size = 8) {
         (void)c1;
         return true;
     }
-    __except (EXCEPTION_EXECUTE_HANDLER) {
+    catch (...) {
         return false;
     }
 }
 
 inline bool IsValidIl2CppObj(void* obj) {
     if (!IsValidMemPtr(obj, 0x18)) return false;
-    __try {
+    try {
         void* klass = *(void**)obj;
         if (!IsValidMemPtr(klass, 0x20)) return false;
         return true;
     }
-    __except (EXCEPTION_EXECUTE_HANDLER) {
+    catch (...) {
         return false;
     }
 }
 
 inline bool IsValidUnityObj(void* obj) {
     if (!IsValidMemPtr(obj, 0x18)) return false;
-    __try {
+    try {
         void* klass = *(void**)obj;
         if (!IsValidMemPtr(klass, 0x20)) return false;
         // In Unity, m_CachedPtr at offset 0x10 is non-zero if the native C++ object is alive
@@ -71,7 +71,7 @@ inline bool IsValidUnityObj(void* obj) {
         if (cachedPtr == 0) return false;
         return true;
     }
-    __except (EXCEPTION_EXECUTE_HANDLER) {
+    catch (...) {
         return false;
     }
 }
@@ -79,7 +79,7 @@ inline bool IsValidUnityObj(void* obj) {
 
 inline std::string Il2CppStringToStdString(void* il2cppStr) {
     if (!il2cppStr || !IsValidMemPtr(il2cppStr, 0x14)) return "";
-    __try {
+    try {
         int len = *(int*)((char*)il2cppStr + 0x10);
         if (len <= 0 || len > 128) return "";
         wchar_t* chars = (wchar_t*)((char*)il2cppStr + 0x14);
@@ -93,7 +93,7 @@ inline std::string Il2CppStringToStdString(void* il2cppStr) {
         }
         return result;
     }
-    __except (EXCEPTION_EXECUTE_HANDLER) {
+    catch (...) {
         return "";
     }
 }
