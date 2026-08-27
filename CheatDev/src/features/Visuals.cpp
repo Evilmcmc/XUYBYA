@@ -173,80 +173,85 @@ void Visuals::Render(ImGuiIO& io) {
 
         // 2D Bounding Boxes
         if (bDrawBoxes && data.hasBox) {
-            ImVec2 bMin(data.boxMinX, sh - data.boxMaxY);
-            ImVec2 bMax(data.boxMaxX, sh - data.boxMinY);
+            ImVec2 bMin(data.boxMinX, data.boxMinY);
+            ImVec2 bMax(data.boxMaxX, data.boxMaxY);
 
             if (bEnableGlow) {
-                ImU32 glowColOuter = MakeGlowColor(primaryCol, 0.15f * fGlowIntensity);
-                ImU32 glowColMid   = MakeGlowColor(primaryCol, 0.30f * fGlowIntensity);
-                dl->AddRect(bMin, bMax, glowColOuter, 2.0f, 0, fBoxThickness + 4.0f);
-                dl->AddRect(bMin, bMax, glowColMid,   2.0f, 0, fBoxThickness + 2.0f);
+                ImU32 glowBoxOuter = MakeGlowColor(primaryCol, 0.15f * fGlowIntensity);
+                ImU32 glowBoxMid   = MakeGlowColor(primaryCol, 0.30f * fGlowIntensity);
+                dl->AddRect(ImVec2(bMin.x - 3.0f, bMin.y - 3.0f), ImVec2(bMax.x + 3.0f, bMax.y + 3.0f), glowBoxOuter, 4.0f, 0, fBoxThickness + 3.0f);
+                dl->AddRect(ImVec2(bMin.x - 1.5f, bMin.y - 1.5f), ImVec2(bMax.x + 1.5f, bMax.y + 1.5f), glowBoxMid,   3.0f, 0, fBoxThickness + 1.5f);
             }
-            ImU32 coreCol = MakeGlowColor(primaryCol, 1.0f);
-            dl->AddRect(bMin, bMax, coreCol, 2.0f, 0, fBoxThickness);
+
+            dl->AddRect(bMin, bMax, MakeGlowColor(primaryCol, 1.0f), 2.0f, 0, fBoxThickness);
         }
 
-        // Tracers
-        if (bDrawTracers && (data.root.valid || data.chest.valid)) {
-            const BonePoint& targetBone = data.root.valid ? data.root : data.chest;
-            ImVec2 startPos;
-            if (iTracerOrigin == 0)      startPos = ImVec2(cx, sh);
-            else if (iTracerOrigin == 1) startPos = ImVec2(cx, cy);
-            else                         startPos = ImVec2(cx, 0.0f);
+        // Tracers (Snaplines)
+        if (bDrawTracers) {
+            ImVec2 originPos;
+            if (iTracerOrigin == 0)      originPos = ImVec2(sw * 0.5f, sh);
+            else if (iTracerOrigin == 1) originPos = ImVec2(sw * 0.5f, sh * 0.5f);
+            else                         originPos = ImVec2(sw * 0.5f, 0.0f);
 
-            ImVec2 endPos(targetBone.screen.x, sh - targetBone.screen.y);
+            ImVec2 targetPos;
+            if (data.chest.valid) {
+                targetPos = ImVec2(data.chest.screen.x, sh - data.chest.screen.y);
+            } else if (data.hasBox) {
+                targetPos = ImVec2((data.boxMinX + data.boxMaxX) * 0.5f, data.boxMaxY);
+            } else {
+                targetPos = ImVec2(cx, cy);
+            }
 
             if (bEnableGlow) {
-                ImU32 glowColOuter = MakeGlowColor(colTracers, 0.15f * fGlowIntensity);
-                ImU32 glowColMid   = MakeGlowColor(colTracers, 0.30f * fGlowIntensity);
-                dl->AddLine(startPos, endPos, glowColOuter, fTracerThickness + 3.0f);
-                dl->AddLine(startPos, endPos, glowColMid,   fTracerThickness + 1.5f);
+                ImU32 glowTracOuter = MakeGlowColor(colTracers, 0.20f * fGlowIntensity);
+                dl->AddLine(originPos, targetPos, glowTracOuter, fTracerThickness + 2.5f);
             }
-            ImU32 coreCol = MakeGlowColor(colTracers, 0.85f);
-            dl->AddLine(startPos, endPos, coreCol, fTracerThickness);
+
+            dl->AddLine(originPos, targetPos, MakeGlowColor(colTracers, 1.0f), fTracerThickness);
         }
 
-        // Health Bar & Info Text
-        if ((bDrawHealthBar || bDrawInfoText) && data.hasBox) {
-            float boxH = (data.boxMaxY - data.boxMinY);
-            float boxTopY = sh - data.boxMaxY;
+        // Health Bar
+        if (bDrawHealthBar && data.hasBox && data.maxHp > 0) {
+            float ratio = (float)data.hp / (float)data.maxHp;
+            if (ratio < 0.0f) ratio = 0.0f;
+            if (ratio > 1.0f) ratio = 1.0f;
 
-            if (bDrawHealthBar) {
-                float barW = 4.0f;
-                float barX = data.boxMinX - barW - 3.0f;
-                float hpRatio = (data.maxHp > 0) ? ((float)data.hp / (float)data.maxHp) : 1.0f;
-                if (hpRatio < 0.0f) hpRatio = 0.0f;
-                if (hpRatio > 1.0f) hpRatio = 1.0f;
+            float boxH   = data.boxMaxY - data.boxMinY;
+            float barX   = data.boxMinX - 7.0f;
+            float barTop = data.boxMinY;
+            float barBot = data.boxMaxY;
 
-                ImU32 barBg = IM_COL32(20, 20, 25, 200);
-                dl->AddRectFilled(ImVec2(barX, boxTopY), ImVec2(barX + barW, boxTopY + boxH), barBg);
+            dl->AddRectFilled(
+                ImVec2(barX - 4.0f, barTop),
+                ImVec2(barX, barBot),
+                IM_COL32(10, 12, 16, 200)
+            );
 
-                ImU32 hpColor;
-                if (hpRatio > 0.60f)      hpColor = IM_COL32(50, 220, 90, 255);
-                else if (hpRatio > 0.25f) hpColor = IM_COL32(240, 180, 30, 255);
-                else                      hpColor = IM_COL32(240, 45, 45, 255);
+            ImU32 hpCol = ratio > 0.6f
+                ? IM_COL32(50,  230, 80,  255)
+                : ratio > 0.3f
+                    ? IM_COL32(250, 210, 40,  255)
+                    : IM_COL32(255, 45,  45,  255);
 
-                float filledH = boxH * hpRatio;
-                dl->AddRectFilled(ImVec2(barX, boxTopY + (boxH - filledH)), ImVec2(barX + barW, boxTopY + boxH), hpColor);
+            dl->AddRectFilled(
+                ImVec2(barX - 4.0f, barBot - boxH * ratio),
+                ImVec2(barX, barBot),
+                hpCol
+            );
+        }
+
+        // Distance & Info Text
+        if (bDrawInfoText && data.hasBox) {
+            char buf[64];
+            if (!data.username.empty()) {
+                snprintf(buf, sizeof(buf), "%s | %s [%.0fm]", data.username.c_str(), data.isEnemy ? "ENEMY" : "TEAM", data.distance);
+            } else {
+                snprintf(buf, sizeof(buf), "%s | %d HP [%.0fm]", data.isEnemy ? "ENEMY" : "TEAM", data.hp, data.distance);
             }
 
-            if (bDrawInfoText) {
-                char textBuf[128];
-                const char* uname = (!data.username.empty()) ? data.username.c_str() : (data.isEnemy ? "ENEMY" : "TEAM");
-                snprintf(textBuf, sizeof(textBuf), "%s | %dm | %d HP",
-                         uname,
-                         (int)data.distance, data.hp);
-
-                ImVec2 textSize = ImGui::CalcTextSize(textBuf);
-                float textX = data.boxMinX + ((data.boxMaxX - data.boxMinX) - textSize.x) * 0.5f;
-                float textY = boxTopY - textSize.y - 3.0f;
-
-                dl->AddRectFilled(ImVec2(textX - 4.0f, textY - 2.0f),
-                                  ImVec2(textX + textSize.x + 4.0f, textY + textSize.y + 2.0f),
-                                  IM_COL32(10, 12, 18, 200), 3.0f);
-
-                dl->AddText(ImVec2(textX, textY), MakeGlowColor(primaryCol, 1.0f), textBuf);
-            }
+            dl->AddText(ImVec2(data.boxMinX + 1.0f, data.boxMinY - 17.0f + 1.0f), IM_COL32(0, 0, 0, 220), buf);
+            dl->AddText(ImVec2(data.boxMinX, data.boxMinY - 17.0f), MakeGlowColor(primaryCol, 1.0f), buf);
         }
     }
 }
+

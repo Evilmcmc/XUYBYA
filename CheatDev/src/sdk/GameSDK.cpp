@@ -129,26 +129,93 @@ void SDK::ResetCache() {
 
 void* SDK::GetCurrentCamera() {
     ULONGLONG now = GetTickCount64();
-    if (g_CachedCamera && IsValidUnityObj(g_CachedCamera) && (now - g_LastCameraCheckTime < 250)) {
+    if (g_CachedCamera && IsValidUnityObj(g_CachedCamera) && (now - g_LastCameraCheckTime < 150)) {
         return g_CachedCamera;
     }
     g_LastCameraCheckTime = now;
 
     void* cam = nullptr;
-    if (g_HasLocalPlayer && g_LocalPlayerInfo.playerMovement && IsValidUnityObj(g_LocalPlayerInfo.playerMovement)) {
-        void* camCtrl = *(void**)((char*)g_LocalPlayerInfo.playerMovement + 0x220); // _cam
-        if (camCtrl && IsValidUnityObj(camCtrl)) {
-            cam = *(void**)((char*)camCtrl + 0x140); // cam
+
+    // 1. Prioritize Local PlayerMovement -> _cam -> cam
+    if (PlayerMovementClass) {
+        Il2CppArray* pmArr = g_Il2Cpp.FindObjectsOfType(PlayerMovementClass);
+        if (pmArr && IsValidMemPtr(pmArr, 0x28)) {
+            uintptr_t cnt = *(uintptr_t*)((char*)pmArr + 0x18);
+            if (cnt > 0 && cnt <= 64) {
+                void** items = (void**)((char*)pmArr + 0x20);
+                for (uintptr_t i = 0; i < cnt; i++) {
+                    if (items[i] && g_Il2Cpp.IsLocalPlayer(items[i])) {
+                        void* rCamCtrl = *(void**)((char*)items[i] + 0x220);
+                        if (rCamCtrl && IsValidUnityObj(rCamCtrl)) {
+                            void* rCam = *(void**)((char*)rCamCtrl + 0x140);
+                            if (rCam && IsValidUnityObj(rCam)) {
+                                cam = rCam;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
+
+    // 2. Prioritize Local RagdollCameraController -> cam
+    if (!cam && RagdollCamClass) {
+        Il2CppArray* camArr = g_Il2Cpp.FindObjectsOfType(RagdollCamClass);
+        if (camArr && IsValidMemPtr(camArr, 0x28)) {
+            uintptr_t cnt = *(uintptr_t*)((char*)camArr + 0x18);
+            if (cnt > 0 && cnt <= 64) {
+                void** items = (void**)((char*)camArr + 0x20);
+                for (uintptr_t i = 0; i < cnt; i++) {
+                    if (items[i] && g_Il2Cpp.IsLocalPlayer(items[i])) {
+                        void* rCam = *(void**)((char*)items[i] + 0x140);
+                        if (rCam && IsValidUnityObj(rCam)) {
+                            cam = rCam;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Prioritize Local Player -> PlayerMovement -> _cam -> cam
+    if (!cam && PlayerClass && PlayerMovementClass) {
+        Il2CppArray* pArr = g_Il2Cpp.FindObjectsOfType(PlayerClass);
+        if (pArr && IsValidMemPtr(pArr, 0x28)) {
+            uintptr_t cnt = *(uintptr_t*)((char*)pArr + 0x18);
+            if (cnt > 0 && cnt <= 64) {
+                void** items = (void**)((char*)pArr + 0x20);
+                for (uintptr_t i = 0; i < cnt; i++) {
+                    if (items[i] && g_Il2Cpp.IsLocalPlayer(items[i])) {
+                        void* pm = g_Il2Cpp.GetComponent(items[i], PlayerMovementClass);
+                        if (pm && IsValidUnityObj(pm)) {
+                            void* rCamCtrl = *(void**)((char*)pm + 0x220);
+                            if (rCamCtrl && IsValidUnityObj(rCamCtrl)) {
+                                void* rCam = *(void**)((char*)rCamCtrl + 0x140);
+                                if (rCam && IsValidUnityObj(rCam)) {
+                                    cam = rCam;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. Fallback to Camera.main / current / allCameras (only when dead, spectating, or in menu)
     if (!cam || !IsValidUnityObj(cam)) {
         cam = g_Il2Cpp.GetMainCamera();
     }
+
     if (cam && IsValidUnityObj(cam)) {
         g_CachedCamera = cam;
     }
     return g_CachedCamera;
 }
+
 
 void SDK::OptimizePerformance() {
     static bool s_Optimized = false;
@@ -390,16 +457,19 @@ void SDK::ResolveBoneSafe(void* mainCam, void* rbPtr, BonePoint& outBone) {
 
     __try {
         if (g_Il2Cpp.GetRigidbodyPosition(rbPtr, &outBone.world)) {
+            if (fabsf(outBone.world.x) < 0.001f && fabsf(outBone.world.y) < 0.001f && fabsf(outBone.world.z) < 0.001f)
+                return;
+
             if (g_Il2Cpp.WorldToScreen(mainCam, outBone.world, &outBone.screen)) {
-                if (outBone.screen.z > 0.1f && outBone.screen.z < 1500.0f &&
+                if (outBone.screen.z > 0.5f && outBone.screen.z < 600.0f &&
                     !std::isnan(outBone.screen.z) && !std::isinf(outBone.screen.z) &&
                     !std::isnan(outBone.screen.x) && !std::isnan(outBone.screen.y)) {
 
                     ImGuiIO& io = ImGui::GetIO();
                     float sw = io.DisplaySize.x;
                     float sh = io.DisplaySize.y;
-                    if (outBone.screen.x >= -500.0f && outBone.screen.x <= sw + 500.0f &&
-                        outBone.screen.y >= -500.0f && outBone.screen.y <= sh + 500.0f) {
+                    if (outBone.screen.x >= -300.0f && outBone.screen.x <= sw + 300.0f &&
+                        outBone.screen.y >= -300.0f && outBone.screen.y <= sh + 300.0f) {
                         outBone.valid = true;
                     }
                 }
@@ -412,6 +482,11 @@ void SDK::ResolveBoneSafe(void* mainCam, void* rbPtr, BonePoint& outBone) {
 }
 
 void SDK::UpdateESPData() {
+    if (!bEnableESP && !bEnableAimbot && !bEnableChams) {
+        g_ESPData.clear();
+        return;
+    }
+
     void* activeCam = GetCurrentCamera();
     if (!activeCam || !IsValidUnityObj(activeCam)) {
         g_ESPData.clear();
@@ -420,6 +495,9 @@ void SDK::UpdateESPData() {
 
     __try {
         ImGuiIO& io = ImGui::GetIO();
+        float sw = io.DisplaySize.x;
+        float sh = io.DisplaySize.y;
+
         std::vector<PlayerESPData> newData;
         newData.reserve(g_CachedPlayers.size());
 
@@ -462,96 +540,117 @@ void SDK::UpdateESPData() {
                     if (g_Il2Cpp.GetTransformPosition(pTransform, &rootWorldPos)) {
                         data.root.world = rootWorldPos;
                         if (g_Il2Cpp.WorldToScreen(activeCam, rootWorldPos, &data.root.screen)) {
-                            if (data.root.screen.z > 0.1f && data.root.screen.z < 1500.0f) data.root.valid = true;
+                            if (data.root.screen.z > 0.5f && data.root.screen.z < 600.0f) data.root.valid = true;
                         }
 
                         data.chest.world = rootWorldPos + Vector3(0.0f, 0.85f, 0.0f);
                         if (g_Il2Cpp.WorldToScreen(activeCam, data.chest.world, &data.chest.screen)) {
-                            if (data.chest.screen.z > 0.1f && data.chest.screen.z < 1500.0f) data.chest.valid = true;
+                            if (data.chest.screen.z > 0.5f && data.chest.screen.z < 600.0f) data.chest.valid = true;
                         }
                     }
                 }
             }
 
+            if (!data.chest.valid && !data.root.valid)
+                continue;
+
+            // Synthesize Head point from Chest position (+0.40m up)
             if (data.chest.valid) {
-                Vector3 headWorld = data.chest.world + Vector3(0.0f, 0.45f, 0.0f);
-                data.head.world   = headWorld;
-                if (g_Il2Cpp.WorldToScreen(activeCam, headWorld, &data.head.screen)) {
-                    if (data.head.screen.z > 0.1f && data.head.screen.z < 1500.0f &&
-                        !std::isnan(data.head.screen.x) && !std::isnan(data.head.screen.y)) {
+                data.head.world = data.chest.world + Vector3(0.0f, 0.40f, 0.0f);
+                if (g_Il2Cpp.WorldToScreen(activeCam, data.head.world, &data.head.screen)) {
+                    if (data.head.screen.z > 0.3f && !std::isnan(data.head.screen.x) && !std::isnan(data.head.screen.y)) {
                         data.head.valid = true;
                     }
                 }
             }
 
-            if (data.root.valid) data.distance = data.root.screen.z;
-            else if (data.chest.valid) data.distance = data.chest.screen.z;
-            else if (data.head.valid) data.distance = data.head.screen.z;
-
-            if (data.distance > fMaxDistance || data.distance <= 0.0f) continue;
-
-            float minX = 99999.0f, maxX = -99999.0f;
-            float minY = 99999.0f, maxY = -99999.0f;
-            int validCount = 0;
-
-            const BonePoint* allBones[] = {
-                &data.head, &data.chest, &data.spine, &data.root,
-                &data.lShoulder, &data.lUpperArm, &data.lElbow, &data.lHand,
-                &data.rShoulder, &data.rUpperArm, &data.rElbow, &data.rHand,
-                &data.lKnee, &data.lFoot, &data.rKnee, &data.rFoot
+            std::vector<Vector3> validPoints;
+            auto AddPoint = [&](const BonePoint& b) {
+                if (b.valid) validPoints.push_back(b.screen);
             };
 
-            for (const auto* b : allBones) {
-                if (b->valid) {
-                    if (b->screen.x < minX) minX = b->screen.x;
-                    if (b->screen.x > maxX) maxX = b->screen.x;
-                    if (b->screen.y < minY) minY = b->screen.y;
-                    if (b->screen.y > maxY) maxY = b->screen.y;
-                    validCount++;
-                }
-            }
+            AddPoint(data.head);
+            AddPoint(data.chest);
+            AddPoint(data.spine);
+            AddPoint(data.root);
+            AddPoint(data.lShoulder);
+            AddPoint(data.lUpperArm);
+            AddPoint(data.lElbow);
+            AddPoint(data.lHand);
+            AddPoint(data.rShoulder);
+            AddPoint(data.rUpperArm);
+            AddPoint(data.rElbow);
+            AddPoint(data.rHand);
+            AddPoint(data.lKnee);
+            AddPoint(data.lFoot);
+            AddPoint(data.rKnee);
+            AddPoint(data.rFoot);
 
-            if (validCount >= 2) {
-                float padX = (maxX - minX) * 0.22f;
-                if (padX < 8.0f) padX = 8.0f;
-                float padY = (maxY - minY) * 0.15f;
-                if (padY < 8.0f) padY = 8.0f;
+            if (validPoints.size() >= 2) {
+                float minX = 999999.0f, maxX = -999999.0f;
+                float minY = 999999.0f, maxY = -999999.0f;
+                float totalZ = 0.0f;
+
+                for (const auto& pt : validPoints) {
+                    float sx = pt.x;
+                    float sy = sh - pt.y;
+
+                    if (sx < minX) minX = sx;
+                    if (sx > maxX) maxX = sx;
+                    if (sy < minY) minY = sy;
+                    if (sy > maxY) maxY = sy;
+
+                    totalZ += pt.z;
+                }
+
+                data.distance = totalZ / (float)validPoints.size();
+                if (data.distance > fMaxDistance || data.distance < 0.2f) continue;
+
+                if ((maxX - minX) < 3.0f && (maxY - minY) < 3.0f)
+                    continue;
+
+                float padX = (data.distance > 0.1f) ? (14.0f / data.distance * 2.0f) : 10.0f;
+                float padY = (data.distance > 0.1f) ? (10.0f / data.distance * 2.0f) : 8.0f;
+                if (padX < 6.0f) padX = 6.0f;
+                if (padX > 30.0f) padX = 30.0f;
+                if (padY < 6.0f) padY = 6.0f;
+                if (padY > 25.0f) padY = 25.0f;
 
                 data.boxMinX = minX - padX;
                 data.boxMaxX = maxX + padX;
                 data.boxMinY = minY - padY;
                 data.boxMaxY = maxY + padY;
+
+                float boxW = data.boxMaxX - data.boxMinX;
+                float boxH = data.boxMaxY - data.boxMinY;
+
+                if (boxW < 4.0f || boxH < 4.0f || boxW > sw * 0.75f || boxH > sh * 0.85f)
+                    continue;
+
+                if (data.boxMaxX < -50.0f || data.boxMinX > sw + 50.0f || data.boxMaxY < -50.0f || data.boxMinY > sh + 50.0f)
+                    continue;
+
                 data.hasBox  = true;
-            } else if (data.distance > 0.1f && (data.root.valid || data.chest.valid || data.head.valid)) {
-                float refX = data.root.valid ? data.root.screen.x : (data.chest.valid ? data.chest.screen.x : data.head.screen.x);
-                float refY = data.root.valid ? data.root.screen.y : (data.chest.valid ? data.chest.screen.y - 20.0f : data.head.screen.y - 45.0f);
-                float estH = (io.DisplaySize.y * 1.5f) / data.distance;
-                if (estH < 15.0f) estH = 15.0f;
-                if (estH > io.DisplaySize.y) estH = io.DisplaySize.y;
-                float estW = estH * 0.50f;
 
-                data.boxMinX = refX - estW * 0.5f;
-                data.boxMaxX = refX + estW * 0.5f;
-                data.boxMinY = refY;
-                data.boxMaxY = refY + estH;
-                data.hasBox  = true;
+                if (iAimbotTarget == 1 && data.head.valid) {
+                    data.aimScreenPos = data.head.screen;
+                } else if (data.chest.valid) {
+                    data.aimScreenPos = data.chest.screen;
+                } else if (data.head.valid) {
+                    data.aimScreenPos = data.head.screen;
+                } else {
+                    data.aimScreenPos = validPoints[0];
+                }
+
+                newData.push_back(data);
             }
-
-            if (iAimbotTarget == 1 && data.head.valid) {
-                data.aimScreenPos = data.head.screen;
-            } else if (data.chest.valid) {
-                data.aimScreenPos = data.chest.screen;
-            } else if (data.root.valid) {
-                data.aimScreenPos = data.root.screen;
-            }
-
-            newData.push_back(data);
         }
 
-        g_ESPData = newData;
+        g_ESPData = std::move(newData);
     }
     __except(EXCEPTION_EXECUTE_HANDLER) {
         g_ESPData.clear();
     }
 }
+
 
