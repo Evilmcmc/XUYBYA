@@ -48,6 +48,7 @@ struct PlayerESPData {
 
     Vector3 aimScreenPos{};
     float   distance = 0.0f;
+    std::string username = "";
 
     int  hp       = 100;
     int  maxHp    = 100;
@@ -59,6 +60,7 @@ struct PlayerESPData {
 
 struct CachedPlayerInfo {
     void* playerObj     = nullptr;
+    std::string username= "";
     bool  isLocal       = false;
     bool  isEnemy       = true;
     bool  awayTeam      = false;
@@ -85,6 +87,7 @@ struct CachedPlayerInfo {
     void* healthComp    = nullptr;
     void* graceComp     = nullptr;
     void* playerMovement= nullptr;
+    void* bountyComp    = nullptr;
     void* weaponManager = nullptr;
     void* inputManager  = nullptr;
 };

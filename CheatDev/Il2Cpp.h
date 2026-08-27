@@ -75,6 +75,27 @@ inline bool IsValidUnityObj(void* obj) {
     }
 }
 
+inline std::string Il2CppStringToStdString(void* il2cppStr) {
+    if (!il2cppStr || !IsValidMemPtr(il2cppStr, 0x14)) return "";
+    __try {
+        int len = *(int*)((char*)il2cppStr + 0x10);
+        if (len <= 0 || len > 128) return "";
+        wchar_t* chars = (wchar_t*)((char*)il2cppStr + 0x14);
+        if (!IsValidMemPtr(chars, len * sizeof(wchar_t))) return "";
+        std::string result;
+        result.reserve(len);
+        for (int i = 0; i < len; ++i) {
+            wchar_t c = chars[i];
+            if (c > 0 && c < 128) result += (char)c;
+            else result += '?';
+        }
+        return result;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        return "";
+    }
+}
+
 // --- IL2CPP Function Typedefs ---
 typedef Il2CppDomain*  (*il2cpp_domain_get_t)();
 typedef Il2CppThread*  (*il2cpp_thread_attach_t)(Il2CppDomain* domain);

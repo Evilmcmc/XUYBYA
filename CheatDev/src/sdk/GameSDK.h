@@ -15,6 +15,9 @@ public:
     // IL2CPP Classes
     static Il2CppClass* PlayerClass;
     static Il2CppClass* PlayerMovementClass;
+    static Il2CppClass* PlayerBountyUpdateClass;
+    static Il2CppClass* PhysicalOutlineClass;
+    static Il2CppClass* TextMeshProClass;
     static Il2CppClass* HealthClass;
     static Il2CppClass* SharedRefClass;
     static Il2CppClass* RagdollCamClass;

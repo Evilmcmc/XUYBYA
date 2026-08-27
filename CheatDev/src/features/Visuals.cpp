@@ -232,17 +232,18 @@ void Visuals::Render(ImGuiIO& io) {
 
             if (bDrawInfoText) {
                 char textBuf[128];
+                const char* uname = (!data.username.empty()) ? data.username.c_str() : (data.isEnemy ? "ENEMY" : "TEAM");
                 snprintf(textBuf, sizeof(textBuf), "%s | %dm | %d HP",
-                         data.isEnemy ? "ENEMY" : "TEAM",
+                         uname,
                          (int)data.distance, data.hp);
 
                 ImVec2 textSize = ImGui::CalcTextSize(textBuf);
                 float textX = data.boxMinX + ((data.boxMaxX - data.boxMinX) - textSize.x) * 0.5f;
                 float textY = boxTopY - textSize.y - 3.0f;
 
-                dl->AddRectFilled(ImVec2(textX - 3.0f, textY - 1.0f),
-                                  ImVec2(textX + textSize.x + 3.0f, textY + textSize.y + 1.0f),
-                                  IM_COL32(10, 12, 18, 190), 3.0f);
+                dl->AddRectFilled(ImVec2(textX - 4.0f, textY - 2.0f),
+                                  ImVec2(textX + textSize.x + 4.0f, textY + textSize.y + 2.0f),
+                                  IM_COL32(10, 12, 18, 200), 3.0f);
 
                 dl->AddText(ImVec2(textX, textY), MakeGlowColor(primaryCol, 1.0f), textBuf);
             }

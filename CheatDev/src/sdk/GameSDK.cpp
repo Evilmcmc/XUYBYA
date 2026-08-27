@@ -3,6 +3,9 @@
 // IL2CPP Classes
 Il2CppClass* SDK::PlayerClass              = nullptr;
 Il2CppClass* SDK::PlayerMovementClass      = nullptr;
+Il2CppClass* SDK::PlayerBountyUpdateClass  = nullptr;
+Il2CppClass* SDK::PhysicalOutlineClass     = nullptr;
+Il2CppClass* SDK::TextMeshProClass         = nullptr;
 Il2CppClass* SDK::HealthClass              = nullptr;
 Il2CppClass* SDK::SharedRefClass           = nullptr;
 Il2CppClass* SDK::RagdollCamClass          = nullptr;
@@ -62,19 +65,21 @@ bool SDK::Initialize() {
     }
 
     if (asmCS) {
-        PlayerClass            = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "Player");
-        PlayerMovementClass    = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "PlayerMovement");
-        HealthClass            = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "Health");
-        SharedRefClass         = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "SharedReferences");
-        RagdollCamClass        = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "RagdollCameraController");
-        WeaponClass            = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "Weapon");
-        WeaponManagerClass     = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "WeaponManager");
-        DataPackerClass        = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "DataPacker");
-        GameCountdownClass     = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "GameCountdown");
-        LevelLoaderClass       = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "LevelLoader");
-        PlayerEndGameClass     = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "PlayerEndGame");
-        HealthGracePeriodClass = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "HealthGracePeriod");
-        BarrelClass            = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "Barrel");
+        PlayerClass             = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "Player");
+        PlayerMovementClass     = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "PlayerMovement");
+        PlayerBountyUpdateClass = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "PlayerBountyUpdate");
+        PhysicalOutlineClass    = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "PhysicalOutline");
+        HealthClass             = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "Health");
+        SharedRefClass          = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "SharedReferences");
+        RagdollCamClass         = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "RagdollCameraController");
+        WeaponClass             = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "Weapon");
+        WeaponManagerClass      = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "WeaponManager");
+        DataPackerClass         = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "DataPacker");
+        GameCountdownClass      = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "GameCountdown");
+        LevelLoaderClass        = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "LevelLoader");
+        PlayerEndGameClass      = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "PlayerEndGame");
+        HealthGracePeriodClass  = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "HealthGracePeriod");
+        BarrelClass             = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "Barrel");
 
         if (HealthClass) {
             GetCurrentHealth       = g_Il2Cpp.FindMethod(HealthClass, "GetCurrentHealth", 0);
@@ -251,6 +256,44 @@ void SDK::ScanEntities() {
                 info.playerMovement = g_Il2Cpp.GetComponent(p, PlayerMovementClass);
                 if (info.playerMovement && IsValidUnityObj(info.playerMovement)) {
                     info.awayTeam = *(bool*)((char*)info.playerMovement + 0x1C4);
+
+                    // Extract username from TMP_Text playerUsername (0x1E0)
+                    void* nameTmpObj = *(void**)((char*)info.playerMovement + 0x1E0);
+                    if (nameTmpObj && IsValidMemPtr(nameTmpObj, 0xF0)) {
+                        void* strPtr = *(void**)((char*)nameTmpObj + 0xE0); // m_text
+                        if (strPtr) {
+                            info.username = Il2CppStringToStdString(strPtr);
+                        }
+                    }
+                }
+            }
+
+            if (PlayerBountyUpdateClass) {
+                info.bountyComp = g_Il2Cpp.GetComponent(p, PlayerBountyUpdateClass);
+                if (info.bountyComp && IsValidUnityObj(info.bountyComp)) {
+                    // Update in-game 3D Outline / Silhouette shaders on player mesh
+                    void* outlinesArr = *(void**)((char*)info.bountyComp + 0x128); // outlines (PhysicalOutline[])
+                    if (outlinesArr && IsValidMemPtr(outlinesArr, 0x28)) {
+                        uintptr_t cnt = *(uintptr_t*)((char*)outlinesArr + 0x18);
+                        if (cnt > 0 && cnt <= 16) {
+                            void** outlineItems = (void**)((char*)outlinesArr + 0x20);
+                            for (uintptr_t k = 0; k < cnt; k++) {
+                                void* outline = outlineItems[k];
+                                if (outline && IsValidUnityObj(outline)) {
+                                    if (bEnableChams) {
+                                        *(int*)((char*)outline + 0x20) = (iChamsStyle == 1) ? 1 : 3; // OutlineAndSilhouette
+                                        float* c = info.isEnemy ? colChamsEnemyVis : colChamsTeamVis;
+                                        *(float*)((char*)outline + 0x24) = c[0];
+                                        *(float*)((char*)outline + 0x28) = c[1];
+                                        *(float*)((char*)outline + 0x2C) = c[2];
+                                        *(float*)((char*)outline + 0x30) = c[3];
+                                        *(float*)((char*)outline + 0x34) = fChamsJointSize * 3.5f;
+                                        *(bool*)((char*)outline + 0x68) = true; // needsUpdate
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -377,6 +420,7 @@ void SDK::UpdateESPData() {
             if (!IsValidUnityObj(pl.playerObj)) continue;
 
             PlayerESPData data{};
+            data.username = pl.username;
             data.hp       = (pl.hp > 0) ? pl.hp : 100;
             data.maxHp    = (pl.maxHp > 0) ? pl.maxHp : 100;
             data.isDead   = pl.isDead;
