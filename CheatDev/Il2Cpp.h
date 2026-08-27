@@ -205,6 +205,16 @@ public:
         LOAD(il2cpp_field_static_get_value);
         #undef LOAD
 
+        // Wait up to 5 seconds for IL2CPP domain initialization
+        int attempts = 0;
+        while (attempts++ < 50) {
+            if (il2cpp_domain_get) {
+                Il2CppDomain* d = il2cpp_domain_get();
+                if (d && IsValidMemPtr(d, 0x10)) break;
+            }
+            Sleep(100);
+        }
+
         AttachThread();
         InitUnityClasses();
         return true;
@@ -213,11 +223,14 @@ public:
     void EnsureThreadAttached() {
         thread_local bool t_IsAttached = false;
         if (!t_IsAttached && il2cpp_domain_get && il2cpp_thread_attach) {
-            Il2CppDomain* domain = il2cpp_domain_get();
-            if (domain) {
-                il2cpp_thread_attach(domain);
-                t_IsAttached = true;
+            __try {
+                Il2CppDomain* domain = il2cpp_domain_get();
+                if (domain && IsValidMemPtr(domain, 0x10)) {
+                    il2cpp_thread_attach(domain);
+                    t_IsAttached = true;
+                }
             }
+            __except (EXCEPTION_EXECUTE_HANDLER) {}
         }
     }
 
@@ -226,22 +239,37 @@ public:
     }
 
     Il2CppImage* GetImage(const char* assemblyName) {
-        if (!il2cpp_domain_get_assemblies || !il2cpp_domain_get || !il2cpp_image_get_name)
+        if (!assemblyName || !il2cpp_domain_get_assemblies || !il2cpp_domain_get || !il2cpp_assembly_get_image || !il2cpp_image_get_name)
             return nullptr;
 
-        size_t size = 0;
-        void** assemblies = (void**)il2cpp_domain_get_assemblies(il2cpp_domain_get(), &size);
-        if (!assemblies) return nullptr;
+        __try {
+            Il2CppDomain* domain = il2cpp_domain_get();
+            if (!domain || !IsValidMemPtr(domain, 0x10)) return nullptr;
 
-        for (size_t i = 0; i < size; ++i) {
-            Il2CppImage* image = il2cpp_assembly_get_image(assemblies[i]);
-            if (!image) continue;
-            const char* name = il2cpp_image_get_name(image);
-            if (name && strstr(name, assemblyName))
-                return image;
+            size_t size = 0;
+            const void** assemblies = (const void**)il2cpp_domain_get_assemblies(domain, &size);
+            if (!assemblies || size == 0 || size > 512 || !IsValidMemPtr(assemblies, size * sizeof(void*))) return nullptr;
+
+            for (size_t i = 0; i < size; ++i) {
+                const void* asmPtr = assemblies[i];
+                if (!asmPtr || !IsValidMemPtr(asmPtr, 0x18)) continue;
+
+                Il2CppImage* image = il2cpp_assembly_get_image(asmPtr);
+                if (!image || !IsValidMemPtr(image, 0x18)) continue;
+
+                const char* name = il2cpp_image_get_name(image);
+                if (name && IsValidMemPtr(name, 4)) {
+                    if (strstr(name, assemblyName))
+                        return image;
+                }
+            }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return nullptr;
         }
         return nullptr;
     }
+
 
     Il2CppClass* FindClass(const char* assemblyName, const char* namespaze, const char* className) {
         Il2CppImage* img = GetImage(assemblyName);
