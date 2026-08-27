@@ -224,13 +224,6 @@ void SDK::ScanEntities() {
         for (uintptr_t i = 0; i < count; i++) {
             void* p = items[i];
             if (!p || !IsValidUnityObj(p)) continue;
-            
-            // p is a Component (Player), check active in hierarchy
-            void* go = nullptr;
-            if (g_Il2Cpp.methodComponentGetGameObject) {
-                go = g_Il2Cpp.il2cpp_runtime_invoke(g_Il2Cpp.methodComponentGetGameObject, p, nullptr, nullptr);
-            }
-            if (!go || !IsValidUnityObj(go) || !g_Il2Cpp.IsGameObjectActiveInHierarchy(go)) continue;
 
             CachedPlayerInfo info{};
             info.playerObj = p;
@@ -352,10 +345,10 @@ void SDK::ScanEntities() {
             g_HasLocalPlayer = true;
             g_LocalPlayerInfo = localInfo;
             for (auto& pl : newPlayers) {
-                if (pl.isLocal) {
+                if (pl.isLocal || pl.playerObj == localInfo.playerObj) {
                     pl.isEnemy = false;
                 } else {
-                    pl.isEnemy = (pl.awayTeam != localInfo.awayTeam);
+                    pl.isEnemy = true;
                 }
             }
         } else {
@@ -364,6 +357,7 @@ void SDK::ScanEntities() {
                 pl.isEnemy = true;
             }
         }
+
 
         g_CachedPlayers = newPlayers;
     }
@@ -382,15 +376,15 @@ void SDK::ResolveBoneSafe(void* mainCam, void* rbPtr, BonePoint& outBone) {
                 return;
 
             if (g_Il2Cpp.WorldToScreen(mainCam, outBone.world, &outBone.screen)) {
-                if (outBone.screen.z > 0.5f && outBone.screen.z < 600.0f &&
+                if (outBone.screen.z > 0.05f && outBone.screen.z < 2000.0f &&
                     !std::isnan(outBone.screen.z) && !std::isinf(outBone.screen.z) &&
                     !std::isnan(outBone.screen.x) && !std::isnan(outBone.screen.y)) {
 
                     ImGuiIO& io = ImGui::GetIO();
                     float sw = io.DisplaySize.x;
                     float sh = io.DisplaySize.y;
-                    if (outBone.screen.x >= -300.0f && outBone.screen.x <= sw + 300.0f &&
-                        outBone.screen.y >= -300.0f && outBone.screen.y <= sh + 300.0f) {
+                    if (outBone.screen.x >= -600.0f && outBone.screen.x <= sw + 600.0f &&
+                        outBone.screen.y >= -600.0f && outBone.screen.y <= sh + 600.0f) {
                         outBone.valid = true;
                     }
                 }
@@ -427,6 +421,7 @@ void SDK::UpdateESPData() {
             if (bIgnoreDead && pl.isDead && pl.hp <= 0) continue;
             if (bIgnoreTeammates && !pl.isEnemy) continue;
             if (!IsValidUnityObj(pl.playerObj)) continue;
+
 
             PlayerESPData data{};
             data.username = pl.username;

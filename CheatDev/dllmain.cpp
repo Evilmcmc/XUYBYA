@@ -37,7 +37,8 @@ bool  bDrawHealthBar    = false;
 bool  bDrawInfoText     = false;
 bool  bIgnoreTeammates  = false;
 bool  bIgnoreLocal      = true;
-bool  bIgnoreDead       = true;
+bool  bIgnoreDead       = false;
+
 float fMaxDistance      = 500.0f;
 
 float colEnemy[4]     = { 1.0f, 0.22f, 0.35f, 1.0f };
