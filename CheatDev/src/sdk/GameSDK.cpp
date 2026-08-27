@@ -17,6 +17,7 @@ Il2CppClass* SDK::LevelLoaderClass         = nullptr;
 Il2CppClass* SDK::PlayerEndGameClass       = nullptr;
 Il2CppClass* SDK::HealthGracePeriodClass   = nullptr;
 Il2CppClass* SDK::BarrelClass              = nullptr;
+Il2CppClass* SDK::BillboardClass           = nullptr;
 Il2CppClass* SDK::QualitySettingsClass     = nullptr;
 
 // IL2CPP Methods
@@ -80,6 +81,7 @@ bool SDK::Initialize() {
         PlayerEndGameClass      = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "PlayerEndGame");
         HealthGracePeriodClass  = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "HealthGracePeriod");
         BarrelClass             = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "Barrel");
+        BillboardClass          = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "Billboard");
 
         if (HealthClass) {
             GetCurrentHealth       = g_Il2Cpp.FindMethod(HealthClass, "GetCurrentHealth", 0);
@@ -130,14 +132,35 @@ void SDK::ResetCache() {
 void* SDK::GetCurrentCamera() {
     void* cam = nullptr;
 
-    // 1. Primary: Unity's Camera.main (always renders the main screen view)
+    // 1. Primary: Unity's Camera.main
     cam = g_Il2Cpp.GetMainCamera();
     if (cam && IsValidUnityObj(cam)) {
         g_CachedCamera = cam;
         return g_CachedCamera;
     }
 
-    // 2. Secondary: SharedReferences.playerCamera (0xF8) from Local Player
+    // 2. Billboard.cam (0x30) - In-game active HUD camera
+    if (BillboardClass) {
+        Il2CppArray* bbArr = g_Il2Cpp.FindObjectsOfType(BillboardClass);
+        if (bbArr && IsValidMemPtr(bbArr, 0x28)) {
+            uintptr_t bbCount = *(uintptr_t*)((char*)bbArr + 0x18);
+            if (bbCount > 0 && bbCount <= 16) {
+                void** bbItems = (void**)((char*)bbArr + 0x20);
+                for (uintptr_t b = 0; b < bbCount; b++) {
+                    void* bb = bbItems[b];
+                    if (bb && IsValidUnityObj(bb)) {
+                        void* bCam = *(void**)((char*)bb + 0x30);
+                        if (bCam && IsValidUnityObj(bCam)) {
+                            g_CachedCamera = bCam;
+                            return g_CachedCamera;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Secondary: SharedReferences.playerCamera (0xF8) from Local Player
     if (g_HasLocalPlayer && g_LocalPlayerInfo.playerObj && IsValidUnityObj(g_LocalPlayerInfo.playerObj)) {
         if (SharedRefClass) {
             void* sRef = g_Il2Cpp.GetComponent(g_LocalPlayerInfo.playerObj, SharedRefClass);
@@ -151,7 +174,7 @@ void* SDK::GetCurrentCamera() {
         }
     }
 
-    // 3. Fallback: PlayerMovement._cam->cam
+    // 4. Fallback: PlayerMovement._cam->cam
     if (g_HasLocalPlayer && g_LocalPlayerInfo.playerMovement && IsValidUnityObj(g_LocalPlayerInfo.playerMovement)) {
         void* rCamCtrl = *(void**)((char*)g_LocalPlayerInfo.playerMovement + 0x220);
         if (rCamCtrl && IsValidUnityObj(rCamCtrl)) {
@@ -165,6 +188,7 @@ void* SDK::GetCurrentCamera() {
 
     return g_CachedCamera;
 }
+
 
 
 void SDK::OptimizePerformance() {

@@ -29,6 +29,7 @@ public:
     static Il2CppClass* PlayerEndGameClass;
     static Il2CppClass* HealthGracePeriodClass;
     static Il2CppClass* BarrelClass;
+    static Il2CppClass* BillboardClass;
     static Il2CppClass* QualitySettingsClass;
 
     // IL2CPP Methods
