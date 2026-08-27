@@ -161,7 +161,7 @@ const int g_KeyNamesCount = 12;
 
 bool IsKeyActive(int keyIndex) {
     switch (keyIndex) {
-        case 0: return (GetAsyncKeyState(VK_MENU) & 0x8000) || (GetAsyncKeyState(VK_LMENU) & 0x8000);
+        case 0: return (GetAsyncKeyState(VK_MENU) & 0x8000) || (GetAsyncKeyState(VK_LMENU) & 0x8000) || (GetAsyncKeyState(VK_RBUTTON) & 0x8000);
         case 1: return (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
         case 2: return (GetAsyncKeyState(VK_SHIFT) & 0x8000) || (GetAsyncKeyState(VK_LSHIFT) & 0x8000);
         case 3: return (GetAsyncKeyState(VK_CONTROL) & 0x8000) || (GetAsyncKeyState(VK_LCONTROL) & 0x8000);
@@ -176,6 +176,7 @@ bool IsKeyActive(int keyIndex) {
         default: return (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
     }
 }
+
 
 void TraceLog(const char* category, const char* fmt, ...) {
     SYSTEMTIME st;

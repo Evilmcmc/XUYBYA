@@ -342,6 +342,16 @@ void SDK::ScanEntities() {
                 }
             }
 
+            info.isLocal = g_Il2Cpp.IsLocalPlayer(p);
+            if (!info.isLocal && info.playerMovement) {
+                void* hud = *(void**)((char*)info.playerMovement + 0x1D0); // HUD
+                void* camCtrl = *(void**)((char*)info.playerMovement + 0x220); // _cam
+                void* playerInput = *(void**)((char*)info.playerMovement + 0xF8); // playerInput
+                if (hud != nullptr || camCtrl != nullptr || playerInput != nullptr) {
+                    info.isLocal = true;
+                }
+            }
+
             if (info.isLocal) {
                 foundLocal = true;
                 localInfo = info;
@@ -361,7 +371,9 @@ void SDK::ScanEntities() {
             }
         } else {
             g_HasLocalPlayer = false;
-            for (auto& pl : newPlayers) pl.isEnemy = true;
+            for (auto& pl : newPlayers) {
+                pl.isEnemy = !pl.isLocal;
+            }
         }
 
         g_CachedPlayers = newPlayers;
@@ -370,6 +382,7 @@ void SDK::ScanEntities() {
         ResetCache();
     }
 }
+
 
 void SDK::ResolveBoneSafe(void* mainCam, void* rbPtr, BonePoint& outBone) {
     outBone.valid = false;

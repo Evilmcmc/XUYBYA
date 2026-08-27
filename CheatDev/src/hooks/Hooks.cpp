@@ -65,44 +65,57 @@ static DWORD_PTR* GetSwapChainVTable() {
     return vtable;
 }
 
-typedef void (*CMDShoot_t)(void* __this, void* posPacked, void* fwdPacked, uint32_t tick, const MethodInfo* method);
-static CMDShoot_t oCMDShoot = nullptr;
+typedef void (*tCMDShoot)(void* __this, void* _cameraPosition, void* _cameraForward, uint32_t tick, const MethodInfo* method);
+static tCMDShoot oCMDShoot = nullptr;
 
-static void hkCMDShoot(void* __this, void* posPacked, void* fwdPacked, uint32_t tick, const MethodInfo* method) {
-    if (!__this || g_Uninjecting) {
-        if (oCMDShoot) oCMDShoot(__this, posPacked, fwdPacked, tick, method);
+static void hkCMDShoot(void* __this, void* _cameraPosition, void* _cameraForward, uint32_t tick, const MethodInfo* method) {
+    if (!__this || !g_IsInitialized || g_Uninjecting) {
+        if (oCMDShoot) oCMDShoot(__this, _cameraPosition, _cameraForward, tick, method);
         return;
     }
 
     __try {
-        if (bEnableSilentAim && SDK::PackDirectionMethod) {
+        if (bEnableSilentAim) {
             Vector3 targetPos{};
             if (Combat::GetSilentAimTargetPosition(&targetPos)) {
+                Vector3 camPos{};
                 void* activeCam = SDK::GetCurrentCamera();
                 if (activeCam && IsValidUnityObj(activeCam)) {
                     void* camTr = g_Il2Cpp.GetComponentTransform(activeCam);
-                    Vector3 camPos{};
-                    if (camTr && g_Il2Cpp.GetTransformPosition(camTr, &camPos)) {
-                        Vector3 aimDir = targetPos - camPos;
-                        float len = aimDir.Length();
-                        if (len > 0.001f) {
-                            aimDir = aimDir * (1.0f / len);
-                            void* fwdArgs[1] = { &aimDir };
-                            void* exc = nullptr;
-                            Il2CppObject* newPacked = g_Il2Cpp.il2cpp_runtime_invoke(SDK::PackDirectionMethod, nullptr, fwdArgs, &exc);
-                            if (newPacked && !exc) {
-                                fwdPacked = (void*)newPacked;
-                            }
+                    if (camTr && IsValidUnityObj(camTr)) {
+                        g_Il2Cpp.GetTransformPosition(camTr, &camPos);
+                    }
+                }
+
+                if (camPos.LengthSq() < 0.001f && SDK::UnpackShortMethod && SDK::UnpackDirectionMethod) {
+                    void* args[1] = { _cameraPosition };
+                    void* exc = nullptr;
+                    Il2CppObject* res = g_Il2Cpp.il2cpp_runtime_invoke(SDK::UnpackDirectionMethod, nullptr, args, &exc);
+                    if (!exc && res && IsValidMemPtr(res, 0x1C)) {
+                        camPos = *(Vector3*)((char*)res + 0x10);
+                    }
+                }
+
+                Vector3 aimDir = targetPos - camPos;
+                float len = aimDir.Length();
+                if (len > 0.001f) {
+                    aimDir = aimDir * (1.0f / len);
+                    if (SDK::PackDirectionMethod) {
+                        void* pArgs[1] = { &aimDir };
+                        void* exc = nullptr;
+                        Il2CppObject* newPackedFwd = g_Il2Cpp.il2cpp_runtime_invoke(SDK::PackDirectionMethod, nullptr, pArgs, &exc);
+                        if (!exc && newPackedFwd && IsValidMemPtr(newPackedFwd, 0x18)) {
+                            _cameraForward = newPackedFwd;
                         }
                     }
                 }
             }
         }
     }
-    __except(EXCEPTION_EXECUTE_HANDLER) {}
+    __except (EXCEPTION_EXECUTE_HANDLER) {}
 
     if (oCMDShoot) {
-        oCMDShoot(__this, posPacked, fwdPacked, tick, method);
+        oCMDShoot(__this, _cameraPosition, _cameraForward, tick, method);
     }
 }
 
@@ -114,17 +127,20 @@ bool Hooks::Initialize() {
     MH_CreateHook((void*)vtable[8],  (LPVOID)&hkPresent,       (void**)&oPresent);
     MH_CreateHook((void*)vtable[13], (LPVOID)&hkResizeBuffers, (void**)&oResizeBuffers);
 
-    if (SDK::CMDShoot && *(void**)SDK::CMDShoot) {
-        void* pfn = *(void**)SDK::CMDShoot;
-        if (MH_CreateHook(pfn, (LPVOID)&hkCMDShoot, (void**)&oCMDShoot) == MH_OK) {
-            CheatLog("[+] Hooks: CMDShoot hooked at %p for Silent Aim!", pfn);
+    if (SDK::CMDShoot) {
+        void* methodPtr = *(void**)SDK::CMDShoot;
+        if (methodPtr) {
+            MH_CreateHook(methodPtr, (LPVOID)&hkCMDShoot, (void**)&oCMDShoot);
+            CheatLog("[+] Weapon::CMDShoot hooked at %p for Silent Aim!", methodPtr);
         }
     }
 
     MH_EnableHook(MH_ALL_HOOKS);
-    CheatLog("[+] Hooks: DirectX SwapChain & Game hooks initialized successfully!");
+    CheatLog("[+] Hooks: DirectX SwapChain & Game methods hooked successfully!");
     return true;
 }
+
+
 
 void Hooks::Shutdown() {
     if (g_hWnd && oWndProc) {

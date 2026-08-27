@@ -314,7 +314,6 @@ void Config::LoadHvHPreset() {
     bDrawSilentAimFOV     = false;
 
     bEnableAimbot         = true;
-    iAimbotKey            = 11; // Always Active [Toggle]
     bAimbotAutoFire       = true;
     aimbotSmooth          = 1.0f; // Instant snap
     aimbotFOV             = 360.0f;
