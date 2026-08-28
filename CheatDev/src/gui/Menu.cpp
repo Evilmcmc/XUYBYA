@@ -40,7 +40,7 @@ static bool BeginModuleCard(const char* label, bool* toggle_val, float height = 
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.12f, 0.16f, 0.23f, 1.0f)); // #1e293b
     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 12.0f);
     
-    bool expanded = ImGui::BeginChild(label, ImVec2(0, height), true, ImGuiWindowFlags_AlwaysUseWindowPadding);
+    bool expanded = ImGui::BeginChild(label, ImVec2(0, height), true, ImGuiChildFlags_AlwaysUseWindowPadding);
     
     // Header Row
     ImGui::PushFont(ImGui::GetIO().Fonts->Fonts.Size > 1 ? ImGui::GetIO().Fonts->Fonts[1] : ImGui::GetFont());
@@ -267,9 +267,9 @@ void Menu::Render() {
             
             // Left Column
             if (BeginModuleCard("Aimbot", &bEnableAimbot, 200)) {
-                ImGui::Checkbox("Visible Only", &bAimbotVisibleOnly);
-                ImGui::SliderFloat("Smoothness", &fAimbotSmooth, 1.0f, 10.0f, "%.1f");
-                ImGui::SliderFloat("FOV Radius", &fAimbotFOV, 10.0f, 500.0f, "%.0f px");
+                ImGui::Checkbox("Visible Only", &bChamsVisibleOnly);
+                ImGui::SliderFloat("Smoothness", &aimbotSmooth, 1.0f, 10.0f, "%.1f");
+                ImGui::SliderFloat("FOV Radius", &aimbotFOV, 10.0f, 500.0f, "%.0f px");
                 
                 const char* targetBones[] = { "Head", "Chest / Torso", "Pelvis" };
                 ImGui::Combo("Target Bone", &iAimbotTarget, targetBones, IM_ARRAYSIZE(targetBones));
@@ -340,21 +340,16 @@ void Menu::Render() {
         else if (iTopNavTab == 2) { // VISUALS
             ImGui::Columns(2, nullptr, false);
             
-            if (BeginModuleCard("Player ESP", &bEnableESP, 220)) {
-                ImGui::Checkbox("Draw 2D Box", &bESPBox);
-                ImGui::Checkbox("Draw Snaplines", &bESPLines);
-                ImGui::Checkbox("Draw Names", &bESPName);
-                ImGui::Checkbox("Draw Health Bar", &bESPHealth);
-                ImGui::Checkbox("Draw Distance", &bESPDistance);
-                ImGui::SliderFloat("Max Render Distance", &fESPMaxDistance, 50.0f, 2000.0f, "%.0f m");
+            if (BeginModuleCard("Player ESP", &bEnableESP, 100)) {
+                ImGui::SliderFloat("Max Render Distance", &fMaxDistance, 50.0f, 2000.0f, "%.0f m");
             }
             EndModuleCard();
             
             ImGui::NextColumn();
             
             if (BeginModuleCard("Chams", &bEnableChams, 160)) {
-                ImGui::ColorEdit4("Visible Color", fChamsColorVisible);
-                ImGui::ColorEdit4("Hidden Color", fChamsColorHidden);
+                ImGui::ColorEdit4("Visible Color", colChamsEnemyVis);
+                ImGui::ColorEdit4("Hidden Color", colChamsEnemyOcc);
             }
             EndModuleCard();
             
