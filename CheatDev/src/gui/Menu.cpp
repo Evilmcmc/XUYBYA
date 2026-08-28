@@ -40,7 +40,8 @@ static bool BeginModuleCard(const char* label, bool* toggle_val, float height = 
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.12f, 0.16f, 0.23f, 1.0f)); // #1e293b
     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 12.0f);
     
-    bool expanded = ImGui::BeginChild(label, ImVec2(0, height), true, ImGuiChildFlags_AlwaysUseWindowPadding);
+    ImGuiWindowFlags win_flags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+    bool expanded = ImGui::BeginChild(label, ImVec2(0, height), true, ImGuiChildFlags_AlwaysUseWindowPadding | win_flags);
     
     // Header Row
     ImGui::PushFont(ImGui::GetIO().Fonts->Fonts.Size > 1 ? ImGui::GetIO().Fonts->Fonts[1] : ImGui::GetFont());
@@ -94,6 +95,95 @@ static void EndModuleCard() {
     ImGui::PopStyleVar();
     ImGui::PopStyleColor();
     ImGui::Spacing();
+}
+
+
+// ─── Custom Figma Widgets ───────────────────────────────────────────────────
+static bool CustomCheckbox(const char* label, bool* v) {
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    float height = 20.0f;
+    float width = 20.0f;
+    
+    ImGui::PushID(label);
+    bool clicked = false;
+    if (ImGui::InvisibleButton("##cb", ImVec2(width, height))) {
+        *v = !*v;
+        clicked = true;
+    }
+    bool hovered = ImGui::IsItemHovered();
+    ImU32 bg_col = *v ? IM_COL32(59, 130, 246, 255) : (hovered ? IM_COL32(80, 90, 110, 255) : IM_COL32(15, 23, 42, 255));
+    draw_list->AddRectFilled(p, ImVec2(p.x + width, p.y + height), bg_col, 6.0f);
+    
+    if (*v) {
+        draw_list->AddLine(ImVec2(p.x + 5, p.y + 10), ImVec2(p.x + 9, p.y + 14), IM_COL32(255,255,255,255), 2.0f);
+        draw_list->AddLine(ImVec2(p.x + 9, p.y + 14), ImVec2(p.x + 15, p.y + 5), IM_COL32(255,255,255,255), 2.0f);
+    }
+    
+    ImGui::SameLine();
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 2.0f);
+    ImGui::TextColored(ImVec4(0.97f, 0.98f, 0.99f, 1.0f), "%s", label);
+    ImGui::PopID();
+    
+    return clicked;
+}
+
+static bool CustomSliderFloat(const char* label, float* v, float v_min, float v_max, const char* format) {
+    ImGui::PushID(label);
+    
+    // Top row: Label | Value
+    ImGui::TextColored(ImVec4(0.97f, 0.98f, 0.99f, 1.0f), "%s", label);
+    
+    char val_buf[32];
+    snprintf(val_buf, sizeof(val_buf), format, *v);
+    
+    float val_width = ImGui::CalcTextSize(val_buf).x;
+    ImGui::SameLine(ImGui::GetWindowWidth() - val_width - 30.0f);
+    ImGui::TextColored(ImVec4(0.58f, 0.64f, 0.72f, 1.0f), "%s", val_buf);
+    
+    // Bottom row: Slider bar
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    float width = ImGui::GetWindowWidth() - 40.0f;
+    float height = 6.0f; 
+    
+    ImGui::InvisibleButton("##slider", ImVec2(width, 16.0f));
+    bool hovered = ImGui::IsItemHovered();
+    bool active = ImGui::IsItemActive();
+    
+    if (active) {
+        float mouse_x = ImGui::GetIO().MousePos.x;
+        float normalized = (mouse_x - p.x) / width;
+        if (normalized < 0.0f) normalized = 0.0f;
+        if (normalized > 1.0f) normalized = 1.0f;
+        *v = v_min + normalized * (v_max - v_min);
+    }
+    
+    float normalized_val = (*v - v_min) / (v_max - v_min);
+    if (normalized_val < 0.0f) normalized_val = 0.0f;
+    if (normalized_val > 1.0f) normalized_val = 1.0f;
+    float fill_width = normalized_val * width;
+    
+    // Background track
+    draw_list->AddRectFilled(ImVec2(p.x, p.y + 5.0f), ImVec2(p.x + width, p.y + 5.0f + height), IM_COL32(15, 23, 42, 255), 3.0f);
+    
+    // Fill track
+    if (fill_width > 0) {
+        draw_list->AddRectFilled(ImVec2(p.x, p.y + 5.0f), ImVec2(p.x + fill_width, p.y + 5.0f + height), IM_COL32(59, 130, 246, 255), 3.0f);
+    }
+    
+    // Knob
+    float knob_x = p.x + fill_width;
+    float knob_y = p.y + 5.0f + (height * 0.5f);
+    draw_list->AddCircleFilled(ImVec2(knob_x, knob_y), 7.0f, IM_COL32(255, 255, 255, 255));
+    if (hovered || active) {
+        draw_list->AddCircleFilled(ImVec2(knob_x, knob_y), 10.0f, IM_COL32(255, 255, 255, 50));
+    }
+    
+    ImGui::PopID();
+    ImGui::Spacing();
+    
+    return active;
 }
 
 void Menu::InitializeTheme() {
@@ -267,20 +357,19 @@ void Menu::Render() {
             
             // Left Column
             if (BeginModuleCard("Aimbot", &bEnableAimbot, 200)) {
-                ImGui::Checkbox("Visible Only", &bChamsVisibleOnly);
-                ImGui::SliderFloat("Smoothness", &aimbotSmooth, 1.0f, 10.0f, "%.1f");
-                ImGui::SliderFloat("FOV Radius", &aimbotFOV, 10.0f, 500.0f, "%.0f px");
+                CustomCheckbox("Visible Only", &bChamsVisibleOnly);
+                CustomSliderFloat("Smoothness", &aimbotSmooth, 1.0f, 10.0f, "%.1f");
+                CustomSliderFloat("FOV Radius", &aimbotFOV, 10.0f, 500.0f, "%.0f px");
                 
-                const char* targetBones[] = { "Head", "Chest / Torso", "Pelvis" };
-                ImGui::Combo("Target Bone", &iAimbotTarget, targetBones, IM_ARRAYSIZE(targetBones));
+                CustomCheckbox("Auto Fire", &bAimbotAutoFire);
             }
             EndModuleCard();
 
             if (BeginModuleCard("Silent Aim", &bEnableSilentAim, 180)) {
-                ImGui::Checkbox("Full 360° Hit", &bSilentAimFull360);
-                ImGui::Checkbox("Draw FOV Circle", &bDrawSilentAimFOV);
+                CustomCheckbox("Full 360° Hit", &bSilentAimFull360);
+                CustomCheckbox("Draw FOV Circle", &bDrawSilentAimFOV);
                 if (!bSilentAimFull360) {
-                    ImGui::SliderFloat("FOV Radius", &fSilentAimFOV, 20.0f, 800.0f, "%.0f px");
+                    CustomSliderFloat("FOV Radius", &fSilentAimFOV, 20.0f, 800.0f, "%.0f px");
                 }
                 const char* targetBonesSilent[] = { "Chest / Torso", "Head", "Root / Pelvis" };
                 ImGui::Combo("Target Hit Bone", &iSilentAimTarget, targetBonesSilent, IM_ARRAYSIZE(targetBonesSilent));
@@ -310,14 +399,14 @@ void Menu::Render() {
             ImGui::Columns(2, nullptr, false);
             
             if (BeginModuleCard("Speedhack", &bEnableSpeedhack, 140)) {
-                ImGui::SliderFloat("Speed Multiplier", &fSpeedMultiplier, 1.0f, 10.0f, "%.1fx");
+                CustomSliderFloat("Speed Multiplier", &fSpeedMultiplier, 1.0f, 10.0f, "%.1fx");
             }
             EndModuleCard();
             
             if (BeginModuleCard("Flight & Gravity", &bZeroGravity, 200)) {
-                ImGui::Checkbox("Noclip Fly", &bNoClip);
-                ImGui::SliderFloat("Fly Speed", &fNoClipSpeed, 1.0f, 20.0f, "%.1f");
-                ImGui::SliderFloat("Gravity Modifier", &fGravityMultiplier, -2.0f, 2.0f, "%.2fx");
+                CustomCheckbox("Noclip Fly", &bNoClip);
+                CustomSliderFloat("Fly Speed", &fNoClipSpeed, 1.0f, 20.0f, "%.1f");
+                CustomSliderFloat("Gravity Modifier", &fGravityMultiplier, -2.0f, 2.0f, "%.2fx");
             }
             EndModuleCard();
             
@@ -329,9 +418,9 @@ void Menu::Render() {
             EndModuleCard();
 
             if (BeginModuleCard("Jump Mods", &bEnableSuperJump, 160)) {
-                ImGui::Checkbox("Infinite Air Jumps", &bInfiniteAirJump);
-                ImGui::Checkbox("Bunnyhop (Auto-Jump)", &bBunnyhop);
-                ImGui::SliderFloat("Jump Power", &fJumpMultiplier, 1.0f, 5.0f, "%.1fx");
+                CustomCheckbox("Infinite Air Jumps", &bInfiniteAirJump);
+                CustomCheckbox("Bunnyhop (Auto-Jump)", &bBunnyhop);
+                CustomSliderFloat("Jump Power", &fJumpMultiplier, 1.0f, 5.0f, "%.1fx");
             }
             EndModuleCard();
             
@@ -341,7 +430,7 @@ void Menu::Render() {
             ImGui::Columns(2, nullptr, false);
             
             if (BeginModuleCard("Player ESP", &bEnableESP, 100)) {
-                ImGui::SliderFloat("Max Render Distance", &fMaxDistance, 50.0f, 2000.0f, "%.0f m");
+                CustomSliderFloat("Max Render Distance", &fMaxDistance, 50.0f, 2000.0f, "%.0f m");
             }
             EndModuleCard();
             
@@ -354,9 +443,9 @@ void Menu::Render() {
             EndModuleCard();
             
             if (BeginModuleCard("World FX", &bCustomFOV, 160)) {
-                ImGui::SliderFloat("Camera FOV", &fCustomFOVValue, 60.0f, 150.0f, "%.0f");
-                ImGui::Checkbox("Disable Shadows", &bDisableGameShadows);
-                ImGui::Checkbox("Disable Fog", &bDisableFogAndBlur);
+                CustomSliderFloat("Camera FOV", &fCustomFOVValue, 60.0f, 150.0f, "%.0f");
+                CustomCheckbox("Disable Shadows", &bDisableGameShadows);
+                CustomCheckbox("Disable Fog", &bDisableFogAndBlur);
             }
             EndModuleCard();
             
@@ -366,20 +455,20 @@ void Menu::Render() {
             ImGui::Columns(2, nullptr, false);
             
             if (BeginModuleCard("Gun Mods", &bInfiniteAmmo, 200)) {
-                ImGui::Checkbox("99,999 Damage", &bOneHitKillDamage);
-                ImGui::Checkbox("Rapid Fire", &bRapidFire);
-                ImGui::Checkbox("Infinite Range", &bInfiniteRange);
-                ImGui::Checkbox("Bypass Spawn Delay", &bWeaponSpawnBypass);
+                CustomCheckbox("99,999 Damage", &bOneHitKillDamage);
+                CustomCheckbox("Rapid Fire", &bRapidFire);
+                CustomCheckbox("Infinite Range", &bInfiniteRange);
+                CustomCheckbox("Bypass Spawn Delay", &bWeaponSpawnBypass);
             }
             EndModuleCard();
             
             ImGui::NextColumn();
             
             if (BeginModuleCard("Grappling Hook", &bInfiniteGrappleRange, 200)) {
-                ImGui::Checkbox("Super Speed", &bSuperGrappleSpeed);
-                ImGui::SliderFloat("Speed Multiplier", &fGrappleSpeedMult, 1.0f, 5.0f, "%.1fx");
-                ImGui::Checkbox("Instant Boost", &bInstantGrappleBoost);
-                ImGui::Checkbox("Magnet Aim", &bGrappleMagnetAim);
+                CustomCheckbox("Super Speed", &bSuperGrappleSpeed);
+                CustomSliderFloat("Speed Multiplier", &fGrappleSpeedMult, 1.0f, 5.0f, "%.1fx");
+                CustomCheckbox("Instant Boost", &bInstantGrappleBoost);
+                CustomCheckbox("Magnet Aim", &bGrappleMagnetAim);
             }
             EndModuleCard();
             
