@@ -282,11 +282,12 @@ public:
         __try {
             Il2CppClass* cur = klass;
             int depth = 0;
-            while (cur && depth++ < 10) {
+            while (cur && IsValidMemPtr(cur, 0x20) && depth++ < 10) {
                 MethodInfo* m = il2cpp_class_get_method_from_name(cur, methodName, argsCount);
                 if (m) return m;
-                if (!IsValidMemPtr(cur, 0x20)) break;
-                cur = *(Il2CppClass**)((char*)cur + 0x18); // parent/base class in il2cpp
+                Il2CppClass* parent = *(Il2CppClass**)((char*)cur + 0x18);
+                if (!parent || !IsValidMemPtr(parent, 0x20) || parent == cur) break;
+                cur = parent;
             }
         }
         __except (EXCEPTION_EXECUTE_HANDLER) {
@@ -543,7 +544,7 @@ public:
     }
 
     bool GetRigidbodyPosition(void* rb, Vector3* outPos) {
-        if (!IsValidMemPtr(rb, 0x18) || !outPos) return false;
+        if (!IsValidUnityObj(rb) || !outPos) return false;
         EnsureThreadAttached();
         __try {
             // 1. Try direct Rigidbody.get_position

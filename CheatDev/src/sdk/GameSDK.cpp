@@ -138,14 +138,17 @@ void* SDK::GetCurrentCamera() {
 
     // 1. PRIMARY: Local Player's actual dynamic gameplay camera (moves & rotates with player!)
     if (g_HasLocalPlayer && g_LocalPlayerInfo.playerMovement && IsValidUnityObj(g_LocalPlayerInfo.playerMovement)) {
-        void* rCamCtrl = *(void**)((char*)g_LocalPlayerInfo.playerMovement + 0x220);
-        if (rCamCtrl && IsValidUnityObj(rCamCtrl)) {
-            void* rCam = *(void**)((char*)rCamCtrl + 0x140);
-            if (rCam && IsValidUnityObj(rCam)) {
-                g_CachedCamera = rCam;
-                return g_CachedCamera;
+        __try {
+            void* rCamCtrl = *(void**)((char*)g_LocalPlayerInfo.playerMovement + 0x220);
+            if (rCamCtrl && IsValidUnityObj(rCamCtrl)) {
+                void* rCam = *(void**)((char*)rCamCtrl + 0x140);
+                if (rCam && IsValidUnityObj(rCam)) {
+                    g_CachedCamera = rCam;
+                    return g_CachedCamera;
+                }
             }
         }
+        __except (EXCEPTION_EXECUTE_HANDLER) {}
     }
 
     // 2. SECONDARY: Local Player's SharedReferences.playerCamera (0xF8)
@@ -287,43 +290,54 @@ void SDK::ScanEntities() {
             }
 
             // Bone Rigidbodies (Exact offsets from Player TypeDefIndex 7869)
-            info.spineRb     = *(void**)((char*)p + 0x100);
-            info.rootRb      = *(void**)((char*)p + 0x108);
-            info.lFootRb     = *(void**)((char*)p + 0x110);
-            info.rFootRb     = *(void**)((char*)p + 0x118);
-            info.lKneeRb     = *(void**)((char*)p + 0x120);
-            info.rKneeRb     = *(void**)((char*)p + 0x128);
-            info.lHandRb     = *(void**)((char*)p + 0x130);
-            info.rHandRb     = *(void**)((char*)p + 0x138);
-            info.lElbowRb    = *(void**)((char*)p + 0x140);
-            info.rElbowRb    = *(void**)((char*)p + 0x148);
-            info.lUpperArmRb = *(void**)((char*)p + 0x150);
-            info.rUpperArmRb = *(void**)((char*)p + 0x158);
-            info.lShoulderRb = *(void**)((char*)p + 0x160);
-            info.rShoulderRb = *(void**)((char*)p + 0x168);
-            info.chestRb     = *(void**)((char*)p + 0x170);
+            {
+                auto ReadRbSafe = [&](uintptr_t offset) -> void* {
+                    __try {
+                        void* rb = *(void**)((char*)p + offset);
+                        return (rb && IsValidUnityObj(rb)) ? rb : nullptr;
+                    }
+                    __except (EXCEPTION_EXECUTE_HANDLER) { return nullptr; }
+                };
+                info.spineRb     = ReadRbSafe(0x100);
+                info.rootRb      = ReadRbSafe(0x108);
+                info.lFootRb     = ReadRbSafe(0x110);
+                info.rFootRb     = ReadRbSafe(0x118);
+                info.lKneeRb     = ReadRbSafe(0x120);
+                info.rKneeRb     = ReadRbSafe(0x128);
+                info.lHandRb     = ReadRbSafe(0x130);
+                info.rHandRb     = ReadRbSafe(0x138);
+                info.lElbowRb    = ReadRbSafe(0x140);
+                info.rElbowRb    = ReadRbSafe(0x148);
+                info.lUpperArmRb = ReadRbSafe(0x150);
+                info.rUpperArmRb = ReadRbSafe(0x158);
+                info.lShoulderRb = ReadRbSafe(0x160);
+                info.rShoulderRb = ReadRbSafe(0x168);
+                info.chestRb     = ReadRbSafe(0x170);
+            }
 
             // Fallback: If individual bone pointers are null, check rigidBodies array at 0xF8
             void* rbArr = *(void**)((char*)p + 0xF8);
             if (rbArr && IsValidMemPtr(rbArr, 0x30)) {
                 uintptr_t rbCount = *(uintptr_t*)((char*)rbArr + 0x18);
-                if (rbCount >= 15) {
+                if (rbCount >= 15 && rbCount <= 64) {
                     void** rbItems = (void**)((char*)rbArr + 0x20);
-                    if (!info.spineRb)     info.spineRb     = rbItems[0];
-                    if (!info.rootRb)      info.rootRb      = rbItems[1];
-                    if (!info.lFootRb)     info.lFootRb     = rbItems[2];
-                    if (!info.rFootRb)     info.rFootRb     = rbItems[3];
-                    if (!info.lKneeRb)     info.lKneeRb     = rbItems[4];
-                    if (!info.rKneeRb)     info.rKneeRb     = rbItems[5];
-                    if (!info.lHandRb)     info.lHandRb     = rbItems[6];
-                    if (!info.rHandRb)     info.rHandRb     = rbItems[7];
-                    if (!info.lElbowRb)    info.lElbowRb    = rbItems[8];
-                    if (!info.rElbowRb)    info.rElbowRb    = rbItems[9];
-                    if (!info.lUpperArmRb) info.lUpperArmRb = rbItems[10];
-                    if (!info.rUpperArmRb) info.rUpperArmRb = rbItems[11];
-                    if (!info.lShoulderRb) info.lShoulderRb = rbItems[12];
-                    if (!info.rShoulderRb) info.rShoulderRb = rbItems[13];
-                    if (!info.chestRb)     info.chestRb     = rbItems[14];
+                    if (IsValidMemPtr(rbItems, rbCount * sizeof(void*))) {
+                        if (!info.spineRb     && IsValidUnityObj(rbItems[0]))  info.spineRb     = rbItems[0];
+                        if (!info.rootRb      && IsValidUnityObj(rbItems[1]))  info.rootRb      = rbItems[1];
+                        if (!info.lFootRb     && IsValidUnityObj(rbItems[2]))  info.lFootRb     = rbItems[2];
+                        if (!info.rFootRb     && IsValidUnityObj(rbItems[3]))  info.rFootRb     = rbItems[3];
+                        if (!info.lKneeRb     && IsValidUnityObj(rbItems[4]))  info.lKneeRb     = rbItems[4];
+                        if (!info.rKneeRb     && IsValidUnityObj(rbItems[5]))  info.rKneeRb     = rbItems[5];
+                        if (!info.lHandRb     && IsValidUnityObj(rbItems[6]))  info.lHandRb     = rbItems[6];
+                        if (!info.rHandRb     && IsValidUnityObj(rbItems[7]))  info.rHandRb     = rbItems[7];
+                        if (!info.lElbowRb    && IsValidUnityObj(rbItems[8]))  info.lElbowRb    = rbItems[8];
+                        if (!info.rElbowRb    && IsValidUnityObj(rbItems[9]))  info.rElbowRb    = rbItems[9];
+                        if (!info.lUpperArmRb && IsValidUnityObj(rbItems[10])) info.lUpperArmRb = rbItems[10];
+                        if (!info.rUpperArmRb && IsValidUnityObj(rbItems[11])) info.rUpperArmRb = rbItems[11];
+                        if (!info.lShoulderRb && IsValidUnityObj(rbItems[12])) info.lShoulderRb = rbItems[12];
+                        if (!info.rShoulderRb && IsValidUnityObj(rbItems[13])) info.rShoulderRb = rbItems[13];
+                        if (!info.chestRb     && IsValidUnityObj(rbItems[14])) info.chestRb     = rbItems[14];
+                    }
                 }
             }
 

@@ -180,8 +180,10 @@ HRESULT __stdcall Hooks::hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval
             ImGuiIO& io = ImGui::GetIO();
 
             // 1. Entities and ESP snapshot
-            SDK::ScanEntities();
-            SDK::UpdateESPData();
+            if (g_Il2Cpp.il2cpp_runtime_invoke && SDK::PlayerClass) {
+                SDK::ScanEntities();
+                SDK::UpdateESPData();
+            }
             SDK::OptimizePerformance();
 
             // 2. Feature dispatchers

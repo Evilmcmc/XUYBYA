@@ -173,16 +173,22 @@ void Combat::DoMassKill() {
         if (!activeWeapon || !IsValidUnityObj(activeWeapon)) return;
 
         // Ensure max stats on active weapon
-        *(bool*)((char*)activeWeapon + 0x120) = true;
-        *(int*)((char*)activeWeapon + 0x114)  = 999;
-        *(float*)((char*)activeWeapon + 0x110) = 0.0f;
+        __try {
+            *(bool*)((char*)activeWeapon + 0x120) = true;
+            *(int*)((char*)activeWeapon + 0x114)  = 999;
+            *(float*)((char*)activeWeapon + 0x110) = 0.0f;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) { return; }
 
         void* wData = *(void**)((char*)activeWeapon + 0x100);
-        if (wData && IsValidMemPtr(wData, 0x40)) {
-            *(int*)((char*)wData + 0x18)   = 1000;
-            *(int*)((char*)wData + 0x1C)   = 1000;
-            *(float*)((char*)wData + 0x20) = 500.0f;
-            *(float*)((char*)wData + 0x24) = 0.05f;
+        if (wData && IsValidUnityObj(wData)) {
+            __try {
+                *(int*)((char*)wData + 0x18)   = 1000;
+                *(int*)((char*)wData + 0x1C)   = 1000;
+                *(float*)((char*)wData + 0x20) = 500.0f;
+                *(float*)((char*)wData + 0x24) = 0.05f;
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER) {}
         }
 
         for (const auto& pl : g_CachedPlayers) {
@@ -262,28 +268,69 @@ void Combat::DoTeleportKill(ImGuiIO& /*io*/) {
             g_Il2Cpp.GetTransformForward(targetTr, &targetFwd);
         }
 
-        // Texture-safe ground clearance offset
-        float safeElevation = fTeleportHeight + 0.85f;
-        if (safeElevation < 0.6f) safeElevation = 0.6f;
+        // Нормализация вектора направления для безопасности
+        float fwdLen = sqrtf(targetFwd.x * targetFwd.x + targetFwd.z * targetFwd.z);
+        if (fwdLen > 0.01f) {
+            targetFwd.x /= fwdLen;
+            targetFwd.z /= fwdLen;
+            targetFwd.y = 0.0f; // Игнорируем вертикальную составляющую
+        } else {
+            targetFwd = Vector3(0.0f, 0.0f, 1.0f);
+        }
+
+        // БЕЗОПАСНАЯ высота над землёй — предотвращает застревание в текстурах
+        float safeElevation = 0.25f; // Минимальная безопасная высота
+        
+        // Ограничение дистанции телепорта (предотвращает вылет в космос)
+        float safeDist = fTeleportDistance;
+        if (safeDist < 0.5f) safeDist = 0.5f;
+        if (safeDist > 3.5f) safeDist = 3.5f; // Максимум 3.5 метра
+        
+        float safeHeight = fTeleportHeight;
+        if (safeHeight < -0.5f) safeHeight = -0.5f;
+        if (safeHeight > 2.0f) safeHeight = 2.0f;
 
         Vector3 destPos = targetPos;
         if (iTeleportPosition == 0) {
-            // Behind Enemy (Backstab) - dynamic relative offset
-            destPos = targetPos - (targetFwd * fTeleportDistance) + Vector3(0.0f, safeElevation, 0.0f);
+            // Сзади врага (Backstab)
+            destPos = targetPos - (targetFwd * safeDist);
+            destPos.y = targetPos.y + safeElevation + safeHeight;
         } else if (iTeleportPosition == 1) {
-            // Above Enemy
-            destPos = targetPos + Vector3(0.0f, fTeleportDistance + 1.85f, 0.0f);
+            // Над врагом (только небольшая высота)
+            float aboveHeight = safeDist;
+            if (aboveHeight > 2.5f) aboveHeight = 2.5f;
+            destPos = targetPos + Vector3(0.0f, aboveHeight + 0.5f, 0.0f);
         } else if (iTeleportPosition == 2) {
-            // In Front
-            destPos = targetPos + (targetFwd * fTeleportDistance) + Vector3(0.0f, safeElevation, 0.0f);
+            // Впереди врага
+            destPos = targetPos + (targetFwd * safeDist);
+            destPos.y = targetPos.y + safeElevation + safeHeight;
         } else {
-            // Directly on Target
-            destPos = targetPos + Vector3(0.0f, safeElevation, 0.0f);
+            // Прямо на цель
+            destPos = targetPos;
+            destPos.y = targetPos.y + safeElevation + safeHeight;
         }
+
+        // КРИТИЧЕСКИ ВАЖНО: Проверка координат на валидность (предотвращает вылет в космос)
+        if (std::isnan(destPos.x) || std::isnan(destPos.y) || std::isnan(destPos.z) ||
+            std::isinf(destPos.x) || std::isinf(destPos.y) || std::isinf(destPos.z)) {
+            return; // Отмена телепорта при некорректных координатах
+        }
+
+        // Ограничение по высоте (предотвращает вылет в небо)
+        if (destPos.y > targetPos.y + 10.0f) destPos.y = targetPos.y + 2.0f;
+        if (destPos.y < targetPos.y - 5.0f) destPos.y = targetPos.y + 0.5f;
 
         void* myRootRb = g_LocalPlayerInfo.rootRb;
         if (myRootRb && IsValidUnityObj(myRootRb)) {
+            // Сначала обнуляем скорость для предотвращения инерции
+            g_Il2Cpp.SetRigidbodyLinearVelocity(myRootRb, Vector3(0.0f, 0.0f, 0.0f));
+            g_Il2Cpp.SetRigidbodyAngularVelocity(myRootRb, Vector3(0.0f, 0.0f, 0.0f));
+            
+            // Затем телепортируем
             g_Il2Cpp.MoveRigidbodyPosition(myRootRb, destPos);
+            
+            // Финальное обнуление скорости
+            Sleep(1); // Микропауза для синхронизации физики
             g_Il2Cpp.SetRigidbodyLinearVelocity(myRootRb, Vector3(0.0f, 0.0f, 0.0f));
         }
 
