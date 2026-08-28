@@ -24,6 +24,19 @@ bash build.sh
 ```
 This will generate `Cheat.dll`.
 
+### Codebase Graph Setup
+This project uses `codebase-memory-mcp` for structural knowledge graphs. We have persisted the graph in `.codebase-memory/`. To use it on a new machine, install the MCP server:
+
+**Linux/macOS:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+Invoke-WebRequest -Uri https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.ps1 -OutFile install.ps1; Unblock-File .\install.ps1; .\install.ps1
+```
+
 ## Injection & Usage
 1. Launch **Grapples Galore**.
 2. Inject `Cheat.dll` into the `Grapples Galore.exe` process using your preferred injector.
