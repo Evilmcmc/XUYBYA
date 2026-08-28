@@ -41,7 +41,8 @@ static bool BeginModuleCard(const char* label, bool* toggle_val, float height = 
     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 12.0f);
     
     ImGuiWindowFlags win_flags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
-    bool expanded = ImGui::BeginChild(label, ImVec2(0, height), true, ImGuiChildFlags_AlwaysUseWindowPadding | win_flags);
+    ImGuiChildFlags child_flags = ImGuiChildFlags_Borders | ImGuiChildFlags_AlwaysUseWindowPadding | ImGuiChildFlags_AutoResizeY;
+    bool expanded = ImGui::BeginChild(label, ImVec2(0, 0), child_flags, win_flags);
     
     // Header Row
     ImGui::PushFont(ImGui::GetIO().Fonts->Fonts.Size > 1 ? ImGui::GetIO().Fonts->Fonts[1] : ImGui::GetFont());
