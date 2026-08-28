@@ -1,0 +1,11 @@
+{
+    "schema_version": 2,
+    "commit": "5d7f594eead75079098d7fcf4d60149288046095",
+    "indexed_at": "2026-08-28T12:14:34Z",
+    "project": "home-rawret-XUYBYA",
+    "nodes": 122973,
+    "edges": 316635,
+    "original_size": 888733696,
+    "compressed_size": 25810055,
+    "compression_level": 9
+}
