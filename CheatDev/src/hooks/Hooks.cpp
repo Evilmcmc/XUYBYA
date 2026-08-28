@@ -160,10 +160,18 @@ HRESULT __stdcall Hooks::hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval
                 if (GetFileAttributesA("C:\\Windows\\Fonts\\segoeui.ttf") != INVALID_FILE_ATTRIBUTES) {
                     io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeui.ttf", 16.0f, &fontCfg);
                     // Load second font for PRO badge (larger)
-                    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeb.ttf", 22.0f, &fontCfg); 
+                    if (GetFileAttributesA("C:\\Windows\\Fonts\\segoeuib.ttf") != INVALID_FILE_ATTRIBUTES) {
+                        io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeuib.ttf", 22.0f, &fontCfg); 
+                    } else {
+                        io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeui.ttf", 22.0f, &fontCfg); 
+                    }
                 } else if (GetFileAttributesA("C:\\Windows\\Fonts\\arial.ttf") != INVALID_FILE_ATTRIBUTES) {
                     io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\arial.ttf", 16.0f, &fontCfg);
-                    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\arialbd.ttf", 22.0f, &fontCfg);
+                    if (GetFileAttributesA("C:\\Windows\\Fonts\\arialbd.ttf") != INVALID_FILE_ATTRIBUTES) {
+                        io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\arialbd.ttf", 22.0f, &fontCfg);
+                    } else {
+                        io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\arial.ttf", 22.0f, &fontCfg);
+                    }
                 }
 
                 Menu::InitializeTheme();
