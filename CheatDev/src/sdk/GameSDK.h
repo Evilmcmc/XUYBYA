@@ -33,6 +33,8 @@ public:
     static Il2CppClass* QualitySettingsClass;
     static Il2CppClass* WeaponSpawnClass;
     static Il2CppClass* SpeedBoostSpawnPointClass;
+    static Il2CppClass* RocketLauncherClass;
+    static Il2CppClass* WeaponSpawnCollisionParentClass;
 
     // IL2CPP Methods
     static MethodInfo* DisableCountdownMethod;
@@ -53,6 +55,8 @@ public:
     static MethodInfo* SetQualityLevelMethod;
     static MethodInfo* SetVSyncCountMethod;
     static MethodInfo* SetTargetFrameRateMethod;
+    static MethodInfo* ExplodeRocketMethod;
+    static MethodInfo* CMDMoveAttackChargeMethod;
 
 private:
     static void ResolveBoneSafe(void* mainCam, void* rbPtr, BonePoint& outBone);

@@ -90,6 +90,7 @@ struct CachedPlayerInfo {
     void* bountyComp    = nullptr;
     void* weaponManager = nullptr;
     void* inputManager  = nullptr;
+    void* weaponSpawnCollisionParent = nullptr;
 };
 
 // ─── Shared Thread-Safe States ──────────────────────────────────────────────

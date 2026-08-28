@@ -21,6 +21,8 @@ Il2CppClass* SDK::BillboardClass           = nullptr;
 Il2CppClass* SDK::QualitySettingsClass     = nullptr;
 Il2CppClass* SDK::WeaponSpawnClass         = nullptr;
 Il2CppClass* SDK::SpeedBoostSpawnPointClass= nullptr;
+Il2CppClass* SDK::RocketLauncherClass      = nullptr;
+Il2CppClass* SDK::WeaponSpawnCollisionParentClass = nullptr;
 
 // IL2CPP Methods
 MethodInfo*  SDK::DisableCountdownMethod   = nullptr;
@@ -41,6 +43,8 @@ MethodInfo* SDK::TryUpdateGunGameWeaponMethod   = nullptr;
 MethodInfo* SDK::SetQualityLevelMethod          = nullptr;
 MethodInfo* SDK::SetVSyncCountMethod            = nullptr;
 MethodInfo* SDK::SetTargetFrameRateMethod       = nullptr;
+MethodInfo* SDK::ExplodeRocketMethod             = nullptr;
+MethodInfo* SDK::CMDMoveAttackChargeMethod       = nullptr;
 
 static ULONGLONG g_LastScanTime = 0;
 static void*     g_CachedCamera = nullptr;
@@ -86,6 +90,8 @@ bool SDK::Initialize() {
         BillboardClass          = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "Billboard");
         WeaponSpawnClass        = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "WeaponSpawn");
         SpeedBoostSpawnPointClass = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "SpeedBoostSpawnPoint");
+        RocketLauncherClass      = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "RocketLauncher");
+        WeaponSpawnCollisionParentClass = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "WeaponSpawnCollisionParent");
 
         if (HealthClass) {
             GetCurrentHealth       = g_Il2Cpp.FindMethod(HealthClass, "GetCurrentHealth", 0);
@@ -118,6 +124,16 @@ bool SDK::Initialize() {
 
         if (PlayerEndGameClass) {
             DestroyPlayerMethod    = g_Il2Cpp.FindMethod(PlayerEndGameClass, "DestroyPlayer", 1);
+        }
+
+        if (RocketLauncherClass) {
+            ExplodeRocketMethod = g_Il2Cpp.FindMethod(RocketLauncherClass, "ExplodeRocket", 1);
+            CheatLog("[+] RocketLauncher.ExplodeRocket resolved: %p", ExplodeRocketMethod);
+        }
+
+        if (WeaponSpawnCollisionParentClass) {
+            CMDMoveAttackChargeMethod = g_Il2Cpp.FindMethod(WeaponSpawnCollisionParentClass, "CMDMoveAttackCharge", 1);
+            CheatLog("[+] WeaponSpawnCollisionParent.CMDMoveAttackCharge resolved: %p", CMDMoveAttackChargeMethod);
         }
 
         CheatLog("[+] SDK: All Game Classes & Methods resolved successfully!");
@@ -287,6 +303,10 @@ void SDK::ScanEntities() {
 
             if (WeaponManagerClass) {
                 info.weaponManager = g_Il2Cpp.GetComponent(p, WeaponManagerClass);
+            }
+
+            if (WeaponSpawnCollisionParentClass) {
+                info.weaponSpawnCollisionParent = g_Il2Cpp.GetComponent(p, WeaponSpawnCollisionParentClass);
             }
 
             // Bone Rigidbodies (Exact offsets from Player TypeDefIndex 7869)

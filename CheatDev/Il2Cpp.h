@@ -172,8 +172,14 @@ public:
     MethodInfo* methodRbSetLinearVelocity     = nullptr;
     MethodInfo* methodRbSetAngularVelocity    = nullptr;
     MethodInfo* methodRbMovePosition          = nullptr;
+    MethodInfo* methodRbGetLinearVelocity     = nullptr;
     MethodInfo* methodSetCursorLockState      = nullptr;
     MethodInfo* methodSetCursorVisible        = nullptr;
+
+    // Physics icalls resolved at runtime
+    typedef void (*icall_rb_set_bool_t)(void* rb, bool val);
+    icall_rb_set_bool_t icall_SetUseGravity   = nullptr;
+    icall_rb_set_bool_t icall_SetIsKinematic   = nullptr;
 
     MethodInfo* methodBootstrapGetInstance    = nullptr;
     MethodInfo* methodBootstrapHostLobby      = nullptr;
@@ -346,6 +352,15 @@ public:
                 methodRbSetLinearVelocity  = FindMethod(classRigidbody, "set_linearVelocity", 1);
                 methodRbSetAngularVelocity = FindMethod(classRigidbody, "set_angularVelocity", 1);
                 methodRbMovePosition       = FindMethod(classRigidbody, "MovePosition", 1);
+                methodRbGetLinearVelocity  = FindMethod(classRigidbody, "get_linearVelocity", 0);
+            }
+
+            // Resolve Rigidbody icalls for physics control
+            if (il2cpp_resolve_icall) {
+                icall_SetUseGravity  = (icall_rb_set_bool_t)il2cpp_resolve_icall("UnityEngine.Rigidbody::set_useGravity(System.Boolean)");
+                icall_SetIsKinematic = (icall_rb_set_bool_t)il2cpp_resolve_icall("UnityEngine.Rigidbody::set_isKinematic(System.Boolean)");
+                if (!icall_SetUseGravity)  icall_SetUseGravity  = (icall_rb_set_bool_t)il2cpp_resolve_icall("UnityEngine.Rigidbody::set_useGravity");
+                if (!icall_SetIsKinematic) icall_SetIsKinematic = (icall_rb_set_bool_t)il2cpp_resolve_icall("UnityEngine.Rigidbody::set_isKinematic");
             }
         }
 
@@ -739,6 +754,47 @@ public:
         __except (EXCEPTION_EXECUTE_HANDLER) {
             return false;
         }
+    }
+
+    bool GetRigidbodyVelocity(void* rb, Vector3* outVel) {
+        if (!IsValidUnityObj(rb) || !outVel || !methodRbGetLinearVelocity || !il2cpp_runtime_invoke) return false;
+        EnsureThreadAttached();
+        __try {
+            void* exc = nullptr;
+            Il2CppObject* res = il2cpp_runtime_invoke(methodRbGetLinearVelocity, rb, nullptr, &exc);
+            if (!exc && res && IsValidMemPtr(res, 0x1C)) {
+                *outVel = *(Vector3*)((char*)res + 0x10);
+                return true;
+            }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
+        }
+        return false;
+    }
+
+    bool SetUseGravity(void* rb, bool useGravity) {
+        if (!IsValidUnityObj(rb)) return false;
+        __try {
+            if (icall_SetUseGravity) {
+                icall_SetUseGravity(rb, useGravity);
+                return true;
+            }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {}
+        return false;
+    }
+
+    bool SetIsKinematic(void* rb, bool kinematic) {
+        if (!IsValidUnityObj(rb)) return false;
+        __try {
+            if (icall_SetIsKinematic) {
+                icall_SetIsKinematic(rb, kinematic);
+                return true;
+            }
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {}
+        return false;
     }
 
     void SetCursorState(bool unlocked) {
