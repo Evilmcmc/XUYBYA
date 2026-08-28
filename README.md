@@ -1,13 +1,23 @@
-# XUYBYA - Grapples Galore Internal Cheat
+# XUYBYA - Grapples Galore Modding & Cheat Framework
 
-An internal cheat (DLL) developed for the Unity/IL2CPP game **Grapples Galore**.
+A comprehensive reverse engineering, modding, and cheat development framework for the Unity/IL2CPP game **Grapples Galore**. This repository contains the full game environment, decompiled source code, dumper tools, and a custom internal C++ cheat (DLL).
 
 ## Features
-- **ImGui Menu** (Toggle with `F1`)
-- **Aimbot** (Configurable FOV and Smoothness)
-- **ESP**
-- **Auto-Play**
-- **Dynamic IL2CPP Resolution**: Uses `il2cpp_resolve_icall` to dynamically fetch game engine functions (e.g., `Camera::get_main`, `WorldToScreenPoint`) without relying on hardcoded static offsets that break on game updates.
+- **Internal Cheat (C++)**:
+  - **ImGui Menu** (Toggle with `F1`)
+  - **Aimbot** (Configurable FOV and Smoothness)
+  - **ESP**
+  - **Auto-Play**
+  - **Dynamic IL2CPP Resolution**: Uses `il2cpp_resolve_icall` to dynamically fetch game engine functions (e.g., `Camera::get_main`, `WorldToScreenPoint`) without relying on hardcoded static offsets that break on game updates.
+- **Decompiled Game Source**: Full decompiled C# source of the game's `Assembly-CSharp` located in `SRC/` for easy reference and modding.
+- **Cross-Platform Tooling**: Includes portable .NET runtime and IL2CPP dumpers to extract game metadata directly on Linux.
+
+## Repo Structure
+- `CheatDev/`: Contains the internal cheat source code (`dllmain.cpp`, `Il2Cpp.h`, features), ImGui, MinHook, and build scripts.
+- `SRC/`: The decompiled Unity C# source code (`Assembly-CSharp.dll`) of Grapples Galore. Perfect for finding function signatures and understanding game logic (e.g., `PlayerMovement.cs`, `GrapplingHook.cs`).
+- `DumpedSrc/` & `dumper/`: Il2CppDumper and output files used to extract game metadata and offsets.
+- `Grapples Galore.exe` & `Grapples Galore_Data/`: The target game client and tracked assets (via Git LFS).
+- `ilspy_win/` & `dotnet_runtime/`: Local tooling for decompilation and executing .NET tools on Linux.
 
 ## Development & Compilation
 This cheat is designed to be cross-compiled on Linux for Windows x64.
@@ -39,13 +49,8 @@ Invoke-WebRequest -Uri https://raw.githubusercontent.com/DeusData/codebase-memor
 
 ## Injection & Usage
 1. Launch **Grapples Galore**.
-2. Inject `Cheat.dll` into the `Grapples Galore.exe` process using your preferred injector.
+2. Run `Injector.exe` (built via `build.sh`) to inject `Cheat.dll` into the `Grapples Galore.exe` process.
 3. Press **F1** to open the ImGui menu and configure the Aimbot/ESP settings.
-
-## Repo Structure
-- `CheatDev/`: Contains the cheat source code (`dllmain.cpp`, `Il2Cpp.h`), ImGui, MinHook, and build scripts.
-- `CheatDev/Il2CppDumper/`: The dumper used to extract game metadata and offsets.
-- `Grapples Galore_Data/`: Contains the game assets (tracked via Git LFS).
 
 ## Credits
 - Built with ❤️ for LO.
