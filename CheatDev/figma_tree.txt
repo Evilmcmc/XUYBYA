@@ -1,0 +1,1341 @@
+- [DOCUMENT] Document
+  - [CANVAS] Thumbnail
+    - [FRAME] thumbnail
+      - [TEXT] t.me/jbdsgn : "1212"
+  - [CANVAS] How to Use
+    - [FRAME] duplicate
+  - [CANVAS] Main
+    - [FRAME] gui
+      - [FRAME] bg
+        - [FRAME] image
+        - [FRAME] overlay
+          - [INSTANCE] logo
+            - [VECTOR] Vector
+      - [INSTANCE] gui
+        - [FRAME] background
+        - [INSTANCE] sidebar
+          - [FRAME] background
+            - [ELLIPSE] glow
+          - [FRAME] top
+            - [FRAME] logo
+              - [INSTANCE] logo
+                - [VECTOR] Vector
+              - [ELLIPSE] glow
+            - [FRAME] separator
+              - [FRAME] fill
+            - [FRAME] categories
+              - [INSTANCE] category
+                - [ELLIPSE] glow
+                - [INSTANCE] combat
+                  - [VECTOR] Vector
+              - [INSTANCE] category
+                - [INSTANCE] movement
+                  - [VECTOR] Vector
+              - [INSTANCE] category
+                - [INSTANCE] player
+                  - [VECTOR] Vector
+              - [INSTANCE] category
+                - [INSTANCE] render
+                  - [VECTOR] Vector
+              - [INSTANCE] category
+                - [INSTANCE] misc
+                  - [VECTOR] Vector
+          - [FRAME] avatar
+            - [FRAME] stroke
+        - [FRAME] body
+          - [FRAME] background
+            - [ELLIPSE] glow
+          - [FRAME] modules
+            - [INSTANCE] module
+              - [FRAME] background
+                - [ELLIPSE] glow
+              - [FRAME] header
+                - [TEXT] Module : "AntiBot"
+                - [FRAME] actions
+                  - [INSTANCE] key
+                    - [FRAME] none
+                  - [INSTANCE] toggler
+                    - [FRAME] knob
+              - [FRAME] settngs
+                - [INSTANCE] checkbox
+                  - [TEXT] Checkbox : "Check Invisible"
+                  - [INSTANCE] checkbox
+                    - [FRAME] dot
+                - [INSTANCE] slider
+                  - [FRAME] header
+                    - [TEXT] Slider : "Lifespan (ticks)"
+                    - [TEXT] 2.6 : "20"
+                  - [FRAME] slider
+                    - [FRAME] fill
+                      - [FRAME] knob
+                - [INSTANCE] dropdown
+                  - [FRAME] header
+                    - [TEXT] Dropdown : "Detection Mode"
+                    - [TEXT] 2/3 : "2/3"
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Enum1, Enum2 : "Hypixel, Matrix"
+                      - [INSTANCE] up
+                        - [VECTOR] Vector
+                    - [FRAME] enums
+                      - [INSTANCE] enum
+                        - [TEXT] Enum : "Hypixel"
+                        - [FRAME] indicator
+                          - [FRAME] dot
+                      - [INSTANCE] enum
+                        - [TEXT] Enum : "Matrix"
+                        - [FRAME] indicator
+                          - [FRAME] dot
+                      - [INSTANCE] enum
+                        - [TEXT] Enum : "Vanilla"
+                        - [FRAME] indicator
+              - [FRAME] glow
+            - [INSTANCE] module
+              - [FRAME] background
+                - [ELLIPSE] glow
+              - [FRAME] header
+                - [TEXT] Module : "AutoArmor"
+                - [FRAME] actions
+                  - [INSTANCE] key
+                    - [FRAME] none
+                  - [INSTANCE] toggler
+                    - [FRAME] knob
+              - [FRAME] settngs
+                - [INSTANCE] checkbox
+                  - [TEXT] Checkbox : "Auto Equip"
+                  - [INSTANCE] checkbox
+                - [INSTANCE] slider
+                  - [FRAME] header
+                    - [TEXT] Slider : "Slider"
+                    - [TEXT] 2.6 : "2.6"
+                  - [FRAME] slider
+                    - [FRAME] fill
+                      - [FRAME] knob
+                - [INSTANCE] dropdown
+                  - [FRAME] header
+                    - [TEXT] Dropdown : "Dropdown"
+                    - [TEXT] 2/3 : "2/3"
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                      - [INSTANCE] down
+                        - [VECTOR] Vector
+              - [FRAME] glow
+            - [INSTANCE] module
+              - [FRAME] header
+                - [TEXT] Module : "AutoExplosion"
+                - [FRAME] actions
+                  - [INSTANCE] key
+                    - [FRAME] none
+                  - [INSTANCE] toggler
+                    - [FRAME] knob
+              - [FRAME] settngs
+                - [INSTANCE] checkbox
+                  - [TEXT] Checkbox : "Checkbox"
+                  - [INSTANCE] checkbox
+                    - [FRAME] dot
+                - [INSTANCE] slider
+                  - [FRAME] header
+                    - [TEXT] Slider : "Slider"
+                    - [TEXT] 2.6 : "2.6"
+                  - [FRAME] slider
+                    - [FRAME] fill
+                      - [FRAME] knob
+                - [INSTANCE] dropdown
+                  - [FRAME] header
+                    - [TEXT] Dropdown : "Dropdown"
+                    - [TEXT] 2/3 : "2/3"
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                      - [INSTANCE] down
+                        - [VECTOR] Vector
+            - [INSTANCE] module
+              - [FRAME] background
+                - [ELLIPSE] glow
+              - [FRAME] header
+                - [TEXT] Module : "AutoHeal"
+                - [FRAME] actions
+                  - [INSTANCE] key
+                    - [FRAME] none
+                  - [INSTANCE] toggler
+                    - [FRAME] knob
+              - [FRAME] settngs
+                - [INSTANCE] checkbox
+                  - [TEXT] Checkbox : "Regeneration Potions"
+                  - [INSTANCE] checkbox
+                - [INSTANCE] slider
+                  - [FRAME] header
+                    - [TEXT] Slider : "Slider"
+                    - [TEXT] 2.6 : "2.6"
+                  - [FRAME] slider
+                    - [FRAME] fill
+                      - [FRAME] knob
+                - [INSTANCE] dropdown
+                  - [FRAME] header
+                    - [TEXT] Dropdown : "Dropdown"
+                    - [TEXT] 2/3 : "2/3"
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                      - [INSTANCE] down
+                        - [VECTOR] Vector
+              - [FRAME] glow
+            - [INSTANCE] module
+              - [FRAME] header
+                - [TEXT] Module : "AutoSwap"
+                - [FRAME] actions
+                  - [INSTANCE] key
+                    - [FRAME] none
+                  - [INSTANCE] toggler
+                    - [FRAME] knob
+              - [FRAME] settngs
+                - [INSTANCE] checkbox
+                  - [TEXT] Checkbox : "Checkbox"
+                  - [INSTANCE] checkbox
+                    - [FRAME] dot
+                - [INSTANCE] slider
+                  - [FRAME] header
+                    - [TEXT] Slider : "Slider"
+                    - [TEXT] 2.6 : "2.6"
+                  - [FRAME] slider
+                    - [FRAME] fill
+                      - [FRAME] knob
+                - [INSTANCE] dropdown
+                  - [FRAME] header
+                    - [TEXT] Dropdown : "Dropdown"
+                    - [TEXT] 2/3 : "2/3"
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                      - [INSTANCE] down
+                        - [VECTOR] Vector
+            - [INSTANCE] module
+              - [FRAME] header
+                - [TEXT] Module : "AutoWeapon"
+                - [FRAME] actions
+                  - [INSTANCE] key
+                    - [FRAME] none
+                  - [INSTANCE] toggler
+                    - [FRAME] knob
+              - [FRAME] settngs
+                - [INSTANCE] checkbox
+                  - [TEXT] Checkbox : "Checkbox"
+                  - [INSTANCE] checkbox
+                    - [FRAME] dot
+                - [INSTANCE] slider
+                  - [FRAME] header
+                    - [TEXT] Slider : "Slider"
+                    - [TEXT] 2.6 : "2.6"
+                  - [FRAME] slider
+                    - [FRAME] fill
+                      - [FRAME] knob
+                - [INSTANCE] dropdown
+                  - [FRAME] header
+                    - [TEXT] Dropdown : "Dropdown"
+                    - [TEXT] 2/3 : "2/3"
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                      - [INSTANCE] down
+                        - [VECTOR] Vector
+            - [INSTANCE] module
+              - [FRAME] background
+                - [ELLIPSE] glow
+              - [FRAME] header
+                - [TEXT] Module : "HitBoxes"
+                - [FRAME] actions
+                  - [INSTANCE] key
+                    - [FRAME] none
+                  - [INSTANCE] toggler
+                    - [FRAME] knob
+              - [FRAME] settngs
+                - [INSTANCE] checkbox
+                  - [TEXT] Checkbox : "Checkbox"
+                  - [INSTANCE] checkbox
+                    - [FRAME] dot
+                - [INSTANCE] slider
+                  - [FRAME] header
+                    - [TEXT] Slider : "Slider"
+                    - [TEXT] 2.6 : "2.6"
+                  - [FRAME] slider
+                    - [FRAME] fill
+                      - [FRAME] knob
+                - [INSTANCE] dropdown
+                  - [FRAME] header
+                    - [TEXT] Dropdown : "Dropdown"
+                    - [TEXT] 2/3 : "2/3"
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                      - [INSTANCE] down
+                        - [VECTOR] Vector
+              - [FRAME] glow
+            - [INSTANCE] module
+              - [FRAME] header
+                - [TEXT] Module : "PacketCriticals"
+                - [FRAME] actions
+                  - [INSTANCE] key
+                    - [FRAME] none
+                  - [INSTANCE] toggler
+                    - [FRAME] knob
+              - [FRAME] settngs
+                - [INSTANCE] checkbox
+                  - [TEXT] Checkbox : "Checkbox"
+                  - [INSTANCE] checkbox
+                    - [FRAME] dot
+                - [INSTANCE] slider
+                  - [FRAME] header
+                    - [TEXT] Slider : "Slider"
+                    - [TEXT] 2.6 : "2.6"
+                  - [FRAME] slider
+                    - [FRAME] fill
+                      - [FRAME] knob
+                - [INSTANCE] dropdown
+                  - [FRAME] header
+                    - [TEXT] Dropdown : "Dropdown"
+                    - [TEXT] 2/3 : "2/3"
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                      - [INSTANCE] down
+                        - [VECTOR] Vector
+          - [FRAME] modules
+            - [INSTANCE] module
+              - [FRAME] header
+                - [TEXT] Module : "AntiBow"
+                - [FRAME] actions
+                  - [INSTANCE] key
+                    - [TEXT] KEY : "Z"
+                  - [INSTANCE] toggler
+                    - [FRAME] knob
+              - [FRAME] settngs
+                - [INSTANCE] checkbox
+                  - [TEXT] Checkbox : "Auto-Shield"
+                  - [INSTANCE] checkbox
+                - [INSTANCE] slider
+                  - [FRAME] header
+                    - [TEXT] Slider : "Shield Hold Time (s)"
+                    - [TEXT] 2.6 : "2.6"
+                  - [FRAME] slider
+                    - [FRAME] fill
+                      - [FRAME] knob
+                - [INSTANCE] dropdown
+                  - [FRAME] header
+                    - [TEXT] Dropdown : "Activation Triggers"
+                    - [TEXT] 2/3 : "2/3"
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Enum1, Enum2 : "Enemy Drawing Bow, Arrow In Air"
+                      - [INSTANCE] down
+                        - [VECTOR] Vector
+            - [INSTANCE] module
+              - [FRAME] background
+                - [ELLIPSE] glow
+              - [FRAME] header
+                - [TEXT] Module : "AutoBow"
+                - [FRAME] actions
+                  - [INSTANCE] key
+                    - [TEXT] KEY : "N"
+                  - [INSTANCE] toggler
+                    - [FRAME] knob
+              - [FRAME] settngs
+                - [INSTANCE] checkbox
+                  - [TEXT] Checkbox : "Checkbox"
+                  - [INSTANCE] checkbox
+                    - [FRAME] dot
+                - [INSTANCE] slider
+                  - [FRAME] header
+                    - [TEXT] Slider : "Slider"
+                    - [TEXT] 2.6 : "2.6"
+                  - [FRAME] slider
+                    - [FRAME] fill
+                      - [FRAME] knob
+                - [INSTANCE] dropdown
+                  - [FRAME] header
+                    - [TEXT] Dropdown : "Dropdown"
+                    - [TEXT] 2/3 : "2/3"
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                      - [INSTANCE] down
+                        - [VECTOR] Vector
+              - [FRAME] glow
+            - [INSTANCE] module
+              - [FRAME] header
+                - [TEXT] Module : "AutoGapple"
+                - [FRAME] actions
+                  - [INSTANCE] key
+                    - [FRAME] none
+                  - [INSTANCE] toggler
+                    - [FRAME] knob
+              - [FRAME] settngs
+                - [INSTANCE] checkbox
+                  - [TEXT] Checkbox : "Auto Eat"
+                  - [INSTANCE] checkbox
+                    - [FRAME] dot
+                - [INSTANCE] slider
+                  - [FRAME] header
+                    - [TEXT] Slider : "Slider"
+                    - [TEXT] 2.6 : "2.6"
+                  - [FRAME] slider
+                    - [FRAME] fill
+                      - [FRAME] knob
+                - [INSTANCE] dropdown
+                  - [FRAME] header
+                    - [TEXT] Dropdown : "Preference"
+                    - [TEXT] 2/3 : "1/2"
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Enum1, Enum2 : "Golden Apple"
+                      - [INSTANCE] up
+                        - [VECTOR] Vector
+                    - [FRAME] enums
+                      - [INSTANCE] enum
+                        - [TEXT] Enum : "Golden Apple"
+                        - [FRAME] indicator
+                          - [FRAME] dot
+                      - [INSTANCE] enum
+                        - [TEXT] Enum : "Enchanted Apple"
+                        - [FRAME] indicator
+                      - [INSTANCE] enum
+                        - [TEXT] Enum : "Enum3"
+                        - [FRAME] indicator
+            - [INSTANCE] module
+              - [FRAME] header
+                - [TEXT] Module : "AutoPotion"
+                - [FRAME] actions
+                  - [INSTANCE] key
+                    - [FRAME] none
+                  - [INSTANCE] toggler
+                    - [FRAME] knob
+              - [FRAME] settngs
+                - [INSTANCE] checkbox
+                  - [TEXT] Checkbox : "Checkbox"
+                  - [INSTANCE] checkbox
+                    - [FRAME] dot
+                - [INSTANCE] slider
+                  - [FRAME] header
+                    - [TEXT] Slider : "Slider"
+                    - [TEXT] 2.6 : "2.6"
+                  - [FRAME] slider
+                    - [FRAME] fill
+                      - [FRAME] knob
+                - [INSTANCE] dropdown
+                  - [FRAME] header
+                    - [TEXT] Dropdown : "Dropdown"
+                    - [TEXT] 2/3 : "2/3"
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                      - [INSTANCE] down
+                        - [VECTOR] Vector
+            - [INSTANCE] module
+              - [FRAME] background
+                - [ELLIPSE] glow
+              - [FRAME] header
+                - [TEXT] Module : "AutoTotem"
+                - [FRAME] actions
+                  - [INSTANCE] key
+                    - [FRAME] none
+                  - [INSTANCE] toggler
+                    - [FRAME] knob
+              - [FRAME] settngs
+                - [INSTANCE] checkbox
+                  - [TEXT] Checkbox : "Checkbox"
+                  - [INSTANCE] checkbox
+                    - [FRAME] dot
+                - [INSTANCE] slider
+                  - [FRAME] header
+                    - [TEXT] Slider : "Slider"
+                    - [TEXT] 2.6 : "2.6"
+                  - [FRAME] slider
+                    - [FRAME] fill
+                      - [FRAME] knob
+                - [INSTANCE] dropdown
+                  - [FRAME] header
+                    - [TEXT] Dropdown : "Dropdown"
+                    - [TEXT] 2/3 : "2/3"
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                      - [INSTANCE] down
+                        - [VECTOR] Vector
+              - [FRAME] glow
+            - [INSTANCE] module
+              - [FRAME] header
+                - [TEXT] Module : "FakeRotations"
+                - [FRAME] actions
+                  - [INSTANCE] key
+                    - [FRAME] none
+                  - [INSTANCE] toggler
+                    - [FRAME] knob
+              - [FRAME] settngs
+                - [INSTANCE] checkbox
+                  - [TEXT] Checkbox : "Checkbox"
+                  - [INSTANCE] checkbox
+                    - [FRAME] dot
+                - [INSTANCE] slider
+                  - [FRAME] header
+                    - [TEXT] Slider : "Slider"
+                    - [TEXT] 2.6 : "2.6"
+                  - [FRAME] slider
+                    - [FRAME] fill
+                      - [FRAME] knob
+                - [INSTANCE] dropdown
+                  - [FRAME] header
+                    - [TEXT] Dropdown : "Dropdown"
+                    - [TEXT] 2/3 : "2/3"
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                      - [INSTANCE] down
+                        - [VECTOR] Vector
+            - [INSTANCE] module
+              - [FRAME] background
+                - [ELLIPSE] glow
+              - [FRAME] header
+                - [TEXT] Module : "KillAura"
+                - [FRAME] actions
+                  - [INSTANCE] key
+                    - [FRAME] none
+                  - [INSTANCE] toggler
+                    - [FRAME] knob
+              - [FRAME] settngs
+                - [INSTANCE] checkbox
+                  - [TEXT] Checkbox : "Checkbox"
+                  - [INSTANCE] checkbox
+                    - [FRAME] dot
+                - [INSTANCE] slider
+                  - [FRAME] header
+                    - [TEXT] Slider : "Slider"
+                    - [TEXT] 2.6 : "2.6"
+                  - [FRAME] slider
+                    - [FRAME] fill
+                      - [FRAME] knob
+                - [INSTANCE] dropdown
+                  - [FRAME] header
+                    - [TEXT] Dropdown : "Dropdown"
+                    - [TEXT] 2/3 : "2/3"
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                      - [INSTANCE] down
+                        - [VECTOR] Vector
+              - [FRAME] glow
+            - [INSTANCE] module
+              - [FRAME] header
+                - [TEXT] Module : "TargetStrafe"
+                - [FRAME] actions
+                  - [INSTANCE] key
+                    - [FRAME] none
+                  - [INSTANCE] toggler
+                    - [FRAME] knob
+              - [FRAME] settngs
+                - [INSTANCE] checkbox
+                  - [TEXT] Checkbox : "Checkbox"
+                  - [INSTANCE] checkbox
+                    - [FRAME] dot
+                - [INSTANCE] slider
+                  - [FRAME] header
+                    - [TEXT] Slider : "Slider"
+                    - [TEXT] 2.6 : "2.6"
+                  - [FRAME] slider
+                    - [FRAME] fill
+                      - [FRAME] knob
+                - [INSTANCE] dropdown
+                  - [FRAME] header
+                    - [TEXT] Dropdown : "Dropdown"
+                    - [TEXT] 2/3 : "2/3"
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                      - [INSTANCE] down
+                        - [VECTOR] Vector
+  - [CANVAS] Assets
+    - [FRAME] assets
+      - [FRAME] icons
+        - [COMPONENT] logo
+          - [VECTOR] Vector
+        - [COMPONENT] combat
+          - [VECTOR] Vector
+        - [COMPONENT] movement
+          - [VECTOR] Vector
+        - [COMPONENT] player
+          - [VECTOR] Vector
+        - [COMPONENT] render
+          - [VECTOR] Vector
+        - [COMPONENT] misc
+          - [VECTOR] Vector
+        - [COMPONENT] up
+          - [VECTOR] Vector
+        - [COMPONENT] down
+          - [VECTOR] Vector
+      - [FRAME] gui
+        - [COMPONENT] sidebar
+          - [FRAME] background
+            - [ELLIPSE] glow
+          - [FRAME] top
+            - [FRAME] logo
+              - [INSTANCE] logo
+                - [VECTOR] Vector
+              - [ELLIPSE] glow
+            - [FRAME] separator
+              - [FRAME] fill
+            - [FRAME] categories
+              - [INSTANCE] category
+                - [ELLIPSE] glow
+                - [INSTANCE] combat
+                  - [VECTOR] Vector
+              - [INSTANCE] category
+                - [INSTANCE] movement
+                  - [VECTOR] Vector
+              - [INSTANCE] category
+                - [INSTANCE] player
+                  - [VECTOR] Vector
+              - [INSTANCE] category
+                - [INSTANCE] render
+                  - [VECTOR] Vector
+              - [INSTANCE] category
+                - [INSTANCE] misc
+                  - [VECTOR] Vector
+          - [FRAME] avatar
+            - [FRAME] stroke
+        - [COMPONENT] gui
+          - [FRAME] background
+          - [INSTANCE] sidebar
+            - [FRAME] background
+              - [ELLIPSE] glow
+            - [FRAME] top
+              - [FRAME] logo
+                - [INSTANCE] logo
+                  - [VECTOR] Vector
+                - [ELLIPSE] glow
+              - [FRAME] separator
+                - [FRAME] fill
+              - [FRAME] categories
+                - [INSTANCE] category
+                  - [ELLIPSE] glow
+                  - [INSTANCE] combat
+                    - [VECTOR] Vector
+                - [INSTANCE] category
+                  - [INSTANCE] movement
+                    - [VECTOR] Vector
+                - [INSTANCE] category
+                  - [INSTANCE] player
+                    - [VECTOR] Vector
+                - [INSTANCE] category
+                  - [INSTANCE] render
+                    - [VECTOR] Vector
+                - [INSTANCE] category
+                  - [INSTANCE] misc
+                    - [VECTOR] Vector
+            - [FRAME] avatar
+              - [FRAME] stroke
+          - [FRAME] body
+            - [FRAME] background
+              - [ELLIPSE] glow
+            - [FRAME] modules
+              - [INSTANCE] module
+                - [FRAME] background
+                  - [ELLIPSE] glow
+                - [FRAME] header
+                  - [TEXT] Module : "AntiBot"
+                  - [FRAME] actions
+                    - [INSTANCE] key
+                      - [FRAME] none
+                    - [INSTANCE] toggler
+                      - [FRAME] knob
+                - [FRAME] settngs
+                  - [INSTANCE] checkbox
+                    - [TEXT] Checkbox : "Check Invisible"
+                    - [INSTANCE] checkbox
+                      - [FRAME] dot
+                  - [INSTANCE] slider
+                    - [FRAME] header
+                      - [TEXT] Slider : "Lifespan (ticks)"
+                      - [TEXT] 2.6 : "20"
+                    - [FRAME] slider
+                      - [FRAME] fill
+                        - [FRAME] knob
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Dropdown : "Detection Mode"
+                      - [TEXT] 2/3 : "2/3"
+                    - [INSTANCE] dropdown
+                      - [FRAME] header
+                        - [TEXT] Enum1, Enum2 : "Hypixel, Matrix"
+                        - [INSTANCE] up
+                          - [VECTOR] Vector
+                      - [FRAME] enums
+                        - [INSTANCE] enum
+                          - [TEXT] Enum : "Hypixel"
+                          - [FRAME] indicator
+                            - [FRAME] dot
+                        - [INSTANCE] enum
+                          - [TEXT] Enum : "Matrix"
+                          - [FRAME] indicator
+                            - [FRAME] dot
+                        - [INSTANCE] enum
+                          - [TEXT] Enum : "Vanilla"
+                          - [FRAME] indicator
+                - [FRAME] glow
+              - [INSTANCE] module
+                - [FRAME] background
+                  - [ELLIPSE] glow
+                - [FRAME] header
+                  - [TEXT] Module : "AutoArmor"
+                  - [FRAME] actions
+                    - [INSTANCE] key
+                      - [FRAME] none
+                    - [INSTANCE] toggler
+                      - [FRAME] knob
+                - [FRAME] settngs
+                  - [INSTANCE] checkbox
+                    - [TEXT] Checkbox : "Auto Equip"
+                    - [INSTANCE] checkbox
+                  - [INSTANCE] slider
+                    - [FRAME] header
+                      - [TEXT] Slider : "Slider"
+                      - [TEXT] 2.6 : "2.6"
+                    - [FRAME] slider
+                      - [FRAME] fill
+                        - [FRAME] knob
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Dropdown : "Dropdown"
+                      - [TEXT] 2/3 : "2/3"
+                    - [INSTANCE] dropdown
+                      - [FRAME] header
+                        - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                        - [INSTANCE] down
+                          - [VECTOR] Vector
+                - [FRAME] glow
+              - [INSTANCE] module
+                - [FRAME] header
+                  - [TEXT] Module : "AutoExplosion"
+                  - [FRAME] actions
+                    - [INSTANCE] key
+                      - [FRAME] none
+                    - [INSTANCE] toggler
+                      - [FRAME] knob
+                - [FRAME] settngs
+                  - [INSTANCE] checkbox
+                    - [TEXT] Checkbox : "Checkbox"
+                    - [INSTANCE] checkbox
+                      - [FRAME] dot
+                  - [INSTANCE] slider
+                    - [FRAME] header
+                      - [TEXT] Slider : "Slider"
+                      - [TEXT] 2.6 : "2.6"
+                    - [FRAME] slider
+                      - [FRAME] fill
+                        - [FRAME] knob
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Dropdown : "Dropdown"
+                      - [TEXT] 2/3 : "2/3"
+                    - [INSTANCE] dropdown
+                      - [FRAME] header
+                        - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                        - [INSTANCE] down
+                          - [VECTOR] Vector
+              - [INSTANCE] module
+                - [FRAME] background
+                  - [ELLIPSE] glow
+                - [FRAME] header
+                  - [TEXT] Module : "AutoHeal"
+                  - [FRAME] actions
+                    - [INSTANCE] key
+                      - [FRAME] none
+                    - [INSTANCE] toggler
+                      - [FRAME] knob
+                - [FRAME] settngs
+                  - [INSTANCE] checkbox
+                    - [TEXT] Checkbox : "Regeneration Potions"
+                    - [INSTANCE] checkbox
+                  - [INSTANCE] slider
+                    - [FRAME] header
+                      - [TEXT] Slider : "Slider"
+                      - [TEXT] 2.6 : "2.6"
+                    - [FRAME] slider
+                      - [FRAME] fill
+                        - [FRAME] knob
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Dropdown : "Dropdown"
+                      - [TEXT] 2/3 : "2/3"
+                    - [INSTANCE] dropdown
+                      - [FRAME] header
+                        - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                        - [INSTANCE] down
+                          - [VECTOR] Vector
+                - [FRAME] glow
+              - [INSTANCE] module
+                - [FRAME] header
+                  - [TEXT] Module : "AutoSwap"
+                  - [FRAME] actions
+                    - [INSTANCE] key
+                      - [FRAME] none
+                    - [INSTANCE] toggler
+                      - [FRAME] knob
+                - [FRAME] settngs
+                  - [INSTANCE] checkbox
+                    - [TEXT] Checkbox : "Checkbox"
+                    - [INSTANCE] checkbox
+                      - [FRAME] dot
+                  - [INSTANCE] slider
+                    - [FRAME] header
+                      - [TEXT] Slider : "Slider"
+                      - [TEXT] 2.6 : "2.6"
+                    - [FRAME] slider
+                      - [FRAME] fill
+                        - [FRAME] knob
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Dropdown : "Dropdown"
+                      - [TEXT] 2/3 : "2/3"
+                    - [INSTANCE] dropdown
+                      - [FRAME] header
+                        - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                        - [INSTANCE] down
+                          - [VECTOR] Vector
+              - [INSTANCE] module
+                - [FRAME] header
+                  - [TEXT] Module : "AutoWeapon"
+                  - [FRAME] actions
+                    - [INSTANCE] key
+                      - [FRAME] none
+                    - [INSTANCE] toggler
+                      - [FRAME] knob
+                - [FRAME] settngs
+                  - [INSTANCE] checkbox
+                    - [TEXT] Checkbox : "Checkbox"
+                    - [INSTANCE] checkbox
+                      - [FRAME] dot
+                  - [INSTANCE] slider
+                    - [FRAME] header
+                      - [TEXT] Slider : "Slider"
+                      - [TEXT] 2.6 : "2.6"
+                    - [FRAME] slider
+                      - [FRAME] fill
+                        - [FRAME] knob
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Dropdown : "Dropdown"
+                      - [TEXT] 2/3 : "2/3"
+                    - [INSTANCE] dropdown
+                      - [FRAME] header
+                        - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                        - [INSTANCE] down
+                          - [VECTOR] Vector
+              - [INSTANCE] module
+                - [FRAME] background
+                  - [ELLIPSE] glow
+                - [FRAME] header
+                  - [TEXT] Module : "HitBoxes"
+                  - [FRAME] actions
+                    - [INSTANCE] key
+                      - [FRAME] none
+                    - [INSTANCE] toggler
+                      - [FRAME] knob
+                - [FRAME] settngs
+                  - [INSTANCE] checkbox
+                    - [TEXT] Checkbox : "Checkbox"
+                    - [INSTANCE] checkbox
+                      - [FRAME] dot
+                  - [INSTANCE] slider
+                    - [FRAME] header
+                      - [TEXT] Slider : "Slider"
+                      - [TEXT] 2.6 : "2.6"
+                    - [FRAME] slider
+                      - [FRAME] fill
+                        - [FRAME] knob
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Dropdown : "Dropdown"
+                      - [TEXT] 2/3 : "2/3"
+                    - [INSTANCE] dropdown
+                      - [FRAME] header
+                        - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                        - [INSTANCE] down
+                          - [VECTOR] Vector
+                - [FRAME] glow
+              - [INSTANCE] module
+                - [FRAME] header
+                  - [TEXT] Module : "PacketCriticals"
+                  - [FRAME] actions
+                    - [INSTANCE] key
+                      - [FRAME] none
+                    - [INSTANCE] toggler
+                      - [FRAME] knob
+                - [FRAME] settngs
+                  - [INSTANCE] checkbox
+                    - [TEXT] Checkbox : "Checkbox"
+                    - [INSTANCE] checkbox
+                      - [FRAME] dot
+                  - [INSTANCE] slider
+                    - [FRAME] header
+                      - [TEXT] Slider : "Slider"
+                      - [TEXT] 2.6 : "2.6"
+                    - [FRAME] slider
+                      - [FRAME] fill
+                        - [FRAME] knob
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Dropdown : "Dropdown"
+                      - [TEXT] 2/3 : "2/3"
+                    - [INSTANCE] dropdown
+                      - [FRAME] header
+                        - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                        - [INSTANCE] down
+                          - [VECTOR] Vector
+            - [FRAME] modules
+              - [INSTANCE] module
+                - [FRAME] header
+                  - [TEXT] Module : "AntiBow"
+                  - [FRAME] actions
+                    - [INSTANCE] key
+                      - [TEXT] KEY : "Z"
+                    - [INSTANCE] toggler
+                      - [FRAME] knob
+                - [FRAME] settngs
+                  - [INSTANCE] checkbox
+                    - [TEXT] Checkbox : "Auto-Shield"
+                    - [INSTANCE] checkbox
+                  - [INSTANCE] slider
+                    - [FRAME] header
+                      - [TEXT] Slider : "Shield Hold Time (s)"
+                      - [TEXT] 2.6 : "2.6"
+                    - [FRAME] slider
+                      - [FRAME] fill
+                        - [FRAME] knob
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Dropdown : "Activation Triggers"
+                      - [TEXT] 2/3 : "2/3"
+                    - [INSTANCE] dropdown
+                      - [FRAME] header
+                        - [TEXT] Enum1, Enum2 : "Enemy Drawing Bow, Arrow In Air"
+                        - [INSTANCE] down
+                          - [VECTOR] Vector
+              - [INSTANCE] module
+                - [FRAME] background
+                  - [ELLIPSE] glow
+                - [FRAME] header
+                  - [TEXT] Module : "AutoBow"
+                  - [FRAME] actions
+                    - [INSTANCE] key
+                      - [TEXT] KEY : "N"
+                    - [INSTANCE] toggler
+                      - [FRAME] knob
+                - [FRAME] settngs
+                  - [INSTANCE] checkbox
+                    - [TEXT] Checkbox : "Checkbox"
+                    - [INSTANCE] checkbox
+                      - [FRAME] dot
+                  - [INSTANCE] slider
+                    - [FRAME] header
+                      - [TEXT] Slider : "Slider"
+                      - [TEXT] 2.6 : "2.6"
+                    - [FRAME] slider
+                      - [FRAME] fill
+                        - [FRAME] knob
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Dropdown : "Dropdown"
+                      - [TEXT] 2/3 : "2/3"
+                    - [INSTANCE] dropdown
+                      - [FRAME] header
+                        - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                        - [INSTANCE] down
+                          - [VECTOR] Vector
+                - [FRAME] glow
+              - [INSTANCE] module
+                - [FRAME] header
+                  - [TEXT] Module : "AutoGapple"
+                  - [FRAME] actions
+                    - [INSTANCE] key
+                      - [FRAME] none
+                    - [INSTANCE] toggler
+                      - [FRAME] knob
+                - [FRAME] settngs
+                  - [INSTANCE] checkbox
+                    - [TEXT] Checkbox : "Auto Eat"
+                    - [INSTANCE] checkbox
+                      - [FRAME] dot
+                  - [INSTANCE] slider
+                    - [FRAME] header
+                      - [TEXT] Slider : "Slider"
+                      - [TEXT] 2.6 : "2.6"
+                    - [FRAME] slider
+                      - [FRAME] fill
+                        - [FRAME] knob
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Dropdown : "Preference"
+                      - [TEXT] 2/3 : "1/2"
+                    - [INSTANCE] dropdown
+                      - [FRAME] header
+                        - [TEXT] Enum1, Enum2 : "Golden Apple"
+                        - [INSTANCE] up
+                          - [VECTOR] Vector
+                      - [FRAME] enums
+                        - [INSTANCE] enum
+                          - [TEXT] Enum : "Golden Apple"
+                          - [FRAME] indicator
+                            - [FRAME] dot
+                        - [INSTANCE] enum
+                          - [TEXT] Enum : "Enchanted Apple"
+                          - [FRAME] indicator
+                        - [INSTANCE] enum
+                          - [TEXT] Enum : "Enum3"
+                          - [FRAME] indicator
+              - [INSTANCE] module
+                - [FRAME] header
+                  - [TEXT] Module : "AutoPotion"
+                  - [FRAME] actions
+                    - [INSTANCE] key
+                      - [FRAME] none
+                    - [INSTANCE] toggler
+                      - [FRAME] knob
+                - [FRAME] settngs
+                  - [INSTANCE] checkbox
+                    - [TEXT] Checkbox : "Checkbox"
+                    - [INSTANCE] checkbox
+                      - [FRAME] dot
+                  - [INSTANCE] slider
+                    - [FRAME] header
+                      - [TEXT] Slider : "Slider"
+                      - [TEXT] 2.6 : "2.6"
+                    - [FRAME] slider
+                      - [FRAME] fill
+                        - [FRAME] knob
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Dropdown : "Dropdown"
+                      - [TEXT] 2/3 : "2/3"
+                    - [INSTANCE] dropdown
+                      - [FRAME] header
+                        - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                        - [INSTANCE] down
+                          - [VECTOR] Vector
+              - [INSTANCE] module
+                - [FRAME] background
+                  - [ELLIPSE] glow
+                - [FRAME] header
+                  - [TEXT] Module : "AutoTotem"
+                  - [FRAME] actions
+                    - [INSTANCE] key
+                      - [FRAME] none
+                    - [INSTANCE] toggler
+                      - [FRAME] knob
+                - [FRAME] settngs
+                  - [INSTANCE] checkbox
+                    - [TEXT] Checkbox : "Checkbox"
+                    - [INSTANCE] checkbox
+                      - [FRAME] dot
+                  - [INSTANCE] slider
+                    - [FRAME] header
+                      - [TEXT] Slider : "Slider"
+                      - [TEXT] 2.6 : "2.6"
+                    - [FRAME] slider
+                      - [FRAME] fill
+                        - [FRAME] knob
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Dropdown : "Dropdown"
+                      - [TEXT] 2/3 : "2/3"
+                    - [INSTANCE] dropdown
+                      - [FRAME] header
+                        - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                        - [INSTANCE] down
+                          - [VECTOR] Vector
+                - [FRAME] glow
+              - [INSTANCE] module
+                - [FRAME] header
+                  - [TEXT] Module : "FakeRotations"
+                  - [FRAME] actions
+                    - [INSTANCE] key
+                      - [FRAME] none
+                    - [INSTANCE] toggler
+                      - [FRAME] knob
+                - [FRAME] settngs
+                  - [INSTANCE] checkbox
+                    - [TEXT] Checkbox : "Checkbox"
+                    - [INSTANCE] checkbox
+                      - [FRAME] dot
+                  - [INSTANCE] slider
+                    - [FRAME] header
+                      - [TEXT] Slider : "Slider"
+                      - [TEXT] 2.6 : "2.6"
+                    - [FRAME] slider
+                      - [FRAME] fill
+                        - [FRAME] knob
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Dropdown : "Dropdown"
+                      - [TEXT] 2/3 : "2/3"
+                    - [INSTANCE] dropdown
+                      - [FRAME] header
+                        - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                        - [INSTANCE] down
+                          - [VECTOR] Vector
+              - [INSTANCE] module
+                - [FRAME] background
+                  - [ELLIPSE] glow
+                - [FRAME] header
+                  - [TEXT] Module : "KillAura"
+                  - [FRAME] actions
+                    - [INSTANCE] key
+                      - [FRAME] none
+                    - [INSTANCE] toggler
+                      - [FRAME] knob
+                - [FRAME] settngs
+                  - [INSTANCE] checkbox
+                    - [TEXT] Checkbox : "Checkbox"
+                    - [INSTANCE] checkbox
+                      - [FRAME] dot
+                  - [INSTANCE] slider
+                    - [FRAME] header
+                      - [TEXT] Slider : "Slider"
+                      - [TEXT] 2.6 : "2.6"
+                    - [FRAME] slider
+                      - [FRAME] fill
+                        - [FRAME] knob
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Dropdown : "Dropdown"
+                      - [TEXT] 2/3 : "2/3"
+                    - [INSTANCE] dropdown
+                      - [FRAME] header
+                        - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                        - [INSTANCE] down
+                          - [VECTOR] Vector
+                - [FRAME] glow
+              - [INSTANCE] module
+                - [FRAME] header
+                  - [TEXT] Module : "TargetStrafe"
+                  - [FRAME] actions
+                    - [INSTANCE] key
+                      - [FRAME] none
+                    - [INSTANCE] toggler
+                      - [FRAME] knob
+                - [FRAME] settngs
+                  - [INSTANCE] checkbox
+                    - [TEXT] Checkbox : "Checkbox"
+                    - [INSTANCE] checkbox
+                      - [FRAME] dot
+                  - [INSTANCE] slider
+                    - [FRAME] header
+                      - [TEXT] Slider : "Slider"
+                      - [TEXT] 2.6 : "2.6"
+                    - [FRAME] slider
+                      - [FRAME] fill
+                        - [FRAME] knob
+                  - [INSTANCE] dropdown
+                    - [FRAME] header
+                      - [TEXT] Dropdown : "Dropdown"
+                      - [TEXT] 2/3 : "2/3"
+                    - [INSTANCE] dropdown
+                      - [FRAME] header
+                        - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                        - [INSTANCE] down
+                          - [VECTOR] Vector
+        - [COMPONENT_SET] category
+          - [COMPONENT] Selected=False
+            - [INSTANCE] logo
+              - [VECTOR] Vector
+          - [COMPONENT] Selected=True
+            - [ELLIPSE] glow
+            - [INSTANCE] logo
+              - [VECTOR] Vector
+        - [COMPONENT_SET] toggler
+          - [COMPONENT] Toggled=False
+            - [FRAME] knob
+          - [COMPONENT] Toggled=True
+            - [FRAME] knob
+        - [COMPONENT_SET] module
+          - [COMPONENT] Enabled=False
+            - [FRAME] header
+              - [TEXT] Module : "Module"
+              - [FRAME] actions
+                - [INSTANCE] key
+                  - [FRAME] none
+                - [INSTANCE] toggler
+                  - [FRAME] knob
+            - [FRAME] settngs
+              - [INSTANCE] checkbox
+                - [TEXT] Checkbox : "Checkbox"
+                - [INSTANCE] checkbox
+                  - [FRAME] dot
+              - [INSTANCE] slider
+                - [FRAME] header
+                  - [TEXT] Slider : "Slider"
+                  - [TEXT] 2.6 : "2.6"
+                - [FRAME] slider
+                  - [FRAME] fill
+                    - [FRAME] knob
+              - [INSTANCE] dropdown
+                - [FRAME] header
+                  - [TEXT] Dropdown : "Dropdown"
+                  - [TEXT] 2/3 : "2/3"
+                - [INSTANCE] dropdown
+                  - [FRAME] header
+                    - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                    - [INSTANCE] down
+                      - [VECTOR] Vector
+          - [COMPONENT] Enabled=True
+            - [FRAME] background
+              - [ELLIPSE] glow
+            - [FRAME] header
+              - [TEXT] Module : "Module"
+              - [FRAME] actions
+                - [INSTANCE] key
+                  - [FRAME] none
+                - [INSTANCE] toggler
+                  - [FRAME] knob
+            - [FRAME] settngs
+              - [INSTANCE] checkbox
+                - [TEXT] Checkbox : "Checkbox"
+                - [INSTANCE] checkbox
+                  - [FRAME] dot
+              - [INSTANCE] slider
+                - [FRAME] header
+                  - [TEXT] Slider : "Slider"
+                  - [TEXT] 2.6 : "2.6"
+                - [FRAME] slider
+                  - [FRAME] fill
+                    - [FRAME] knob
+              - [INSTANCE] dropdown
+                - [FRAME] header
+                  - [TEXT] Dropdown : "Dropdown"
+                  - [TEXT] 2/3 : "2/3"
+                - [INSTANCE] dropdown
+                  - [FRAME] header
+                    - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                    - [INSTANCE] down
+                      - [VECTOR] Vector
+            - [FRAME] glow
+      - [FRAME] guielements
+        - [FRAME] checkbox
+          - [COMPONENT_SET] checkbox
+            - [COMPONENT] Enabled=False
+              - [TEXT] Checkbox : "Checkbox"
+              - [INSTANCE] checkbox
+                - [FRAME] dot
+            - [COMPONENT] Enabled=True
+              - [TEXT] Checkbox : "Checkbox"
+              - [INSTANCE] checkbox
+                - [FRAME] dot
+          - [COMPONENT_SET] checkbox
+            - [COMPONENT] Enabled=False, Checked=False
+            - [COMPONENT] Enabled=True, Checked=False
+            - [COMPONENT] Enabled=False, Checked=True
+              - [FRAME] dot
+            - [COMPONENT] Enabled=True, Checked=True
+              - [FRAME] dot
+        - [COMPONENT_SET] slider
+          - [COMPONENT] Enabled=False
+            - [FRAME] header
+              - [TEXT] Slider : "Slider"
+              - [TEXT] 2.6 : "2.6"
+            - [FRAME] slider
+              - [FRAME] fill
+                - [FRAME] knob
+          - [COMPONENT] Enabled=True
+            - [FRAME] header
+              - [TEXT] Slider : "Slider"
+              - [TEXT] 2.6 : "2.6"
+            - [FRAME] slider
+              - [FRAME] fill
+                - [FRAME] knob
+        - [FRAME] dropdown
+          - [COMPONENT_SET] dropdown
+            - [COMPONENT] Enabled=False
+              - [FRAME] header
+                - [TEXT] Dropdown : "Dropdown"
+                - [TEXT] 2/3 : "2/3"
+              - [INSTANCE] dropdown
+                - [FRAME] header
+                  - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                  - [INSTANCE] down
+                    - [VECTOR] Vector
+            - [COMPONENT] Enabled=True
+              - [FRAME] header
+                - [TEXT] Dropdown : "Dropdown"
+                - [TEXT] 2/3 : "2/3"
+              - [INSTANCE] dropdown
+                - [FRAME] header
+                  - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                  - [INSTANCE] down
+                    - [VECTOR] Vector
+          - [COMPONENT_SET] dropdown
+            - [COMPONENT] Enabled=False, Opened=False
+              - [FRAME] header
+                - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                - [INSTANCE] down
+                  - [VECTOR] Vector
+            - [COMPONENT] Enabled=True, Opened=False
+              - [FRAME] header
+                - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                - [INSTANCE] down
+                  - [VECTOR] Vector
+            - [COMPONENT] Enabled=False, Opened=True
+              - [FRAME] header
+                - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                - [INSTANCE] up
+                  - [VECTOR] Vector
+              - [FRAME] enums
+                - [INSTANCE] enum
+                  - [TEXT] Enum : "Enum1"
+                  - [FRAME] indicator
+                    - [FRAME] dot
+                - [INSTANCE] enum
+                  - [TEXT] Enum : "Enum2"
+                  - [FRAME] indicator
+                    - [FRAME] dot
+                - [INSTANCE] enum
+                  - [TEXT] Enum : "Enum3"
+                  - [FRAME] indicator
+            - [COMPONENT] Enabled=True, Opened=True
+              - [FRAME] header
+                - [TEXT] Enum1, Enum2 : "Enum1, Enum2"
+                - [INSTANCE] up
+                  - [VECTOR] Vector
+              - [FRAME] enums
+                - [INSTANCE] enum
+                  - [TEXT] Enum : "Enum1"
+                  - [FRAME] indicator
+                    - [FRAME] dot
+                - [INSTANCE] enum
+                  - [TEXT] Enum : "Enum2"
+                  - [FRAME] indicator
+                    - [FRAME] dot
+                - [INSTANCE] enum
+                  - [TEXT] Enum : "Enum3"
+                  - [FRAME] indicator
+          - [COMPONENT_SET] enum
+            - [COMPONENT] Enabled=False, Selected=False
+              - [TEXT] Enum : "Enum"
+              - [FRAME] indicator
+            - [COMPONENT] Enabled=True, Selected=False
+              - [TEXT] Enum : "Enum"
+              - [FRAME] indicator
+            - [COMPONENT] Enabled=False, Selected=True
+              - [TEXT] Enum : "Enum"
+              - [FRAME] indicator
+                - [FRAME] dot
+            - [COMPONENT] Enabled=True, Selected=True
+              - [TEXT] Enum : "Enum"
+              - [FRAME] indicator
+                - [FRAME] dot
+        - [COMPONENT_SET] key
+          - [COMPONENT] Enabled=False, Set=False
+            - [FRAME] none
+          - [COMPONENT] Enabled=True, Set=False
+            - [FRAME] none
+          - [COMPONENT] Enabled=False, Set=True
+            - [TEXT] KEY : "KEY"
+          - [COMPONENT] Enabled=True, Set=True
+            - [TEXT] KEY : "KEY"

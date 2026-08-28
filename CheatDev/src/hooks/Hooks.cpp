@@ -153,10 +153,17 @@ HRESULT __stdcall Hooks::hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval
                 io.FontGlobalScale = 1.0f;
 
                 // Load Google Sans / Segoe UI modern font
+                ImFontConfig fontCfg;
+                fontCfg.OversampleH = 2;
+                fontCfg.OversampleV = 2;
+                
                 if (GetFileAttributesA("C:\\Windows\\Fonts\\segoeui.ttf") != INVALID_FILE_ATTRIBUTES) {
-                    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeui.ttf", 16.5f);
+                    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeui.ttf", 16.0f, &fontCfg);
+                    // Load second font for PRO badge (larger)
+                    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeb.ttf", 22.0f, &fontCfg); 
                 } else if (GetFileAttributesA("C:\\Windows\\Fonts\\arial.ttf") != INVALID_FILE_ATTRIBUTES) {
-                    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\arial.ttf", 16.0f);
+                    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\arial.ttf", 16.0f, &fontCfg);
+                    io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\arialbd.ttf", 22.0f, &fontCfg);
                 }
 
                 Menu::InitializeTheme();
