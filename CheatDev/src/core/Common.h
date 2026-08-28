@@ -181,6 +181,11 @@ extern bool  bTeleportAutoShoot;
 extern bool  bTeleportLookAt;
 extern float fTeleportShootRate;
 
+extern bool  bTeleportLootItems;
+extern bool  bTeleportLootHoldKey;
+extern int   iTeleportLootKey;
+extern int   iTeleportLootItemType;
+
 extern bool  bEnableMassKill;
 extern float fMassKillInterval;
 extern int   iMassKillMode;
@@ -233,7 +238,7 @@ extern int   iSidebarCategory;
 extern char  szSearchQuery[64];
 
 // Keybind Checker
-extern const char* const g_KeyNames[12];
+extern const char* const g_KeyNames[13];
 extern const int g_KeyNamesCount;
 bool IsKeyActive(int keyIndex);
 

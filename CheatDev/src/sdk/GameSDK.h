@@ -31,6 +31,8 @@ public:
     static Il2CppClass* BarrelClass;
     static Il2CppClass* BillboardClass;
     static Il2CppClass* QualitySettingsClass;
+    static Il2CppClass* WeaponSpawnClass;
+    static Il2CppClass* SpeedBoostSpawnPointClass;
 
     // IL2CPP Methods
     static MethodInfo* DisableCountdownMethod;

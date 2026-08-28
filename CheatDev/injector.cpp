@@ -90,7 +90,7 @@ static void PrintHeader() {
         "  │   ██╔╝ ██╗╚██████╔╝   ██║   ██████╔╝   ██║   ██║  ██║                  │\n"
         "  │   ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚═════╝    ╚═╝   ╚═╝  ╚═╝                  │\n"
         "  │                                                                        │\n"
-        "  │   " C_PURPLE "► GRAPPLES GALORE // ADVANCED INTERNAL INJECTOR SUITE" C_CYAN "               │\n"
+        "  │   " C_PURPLE "► GRAPPLES GALORE // ADVANCED INTERNAL INJECTOR SUITE" C_CYAN "                │\n"
         "  └────────────────────────────────────────────────────────────────────────┘\n"
         C_RESET "\n"
     );

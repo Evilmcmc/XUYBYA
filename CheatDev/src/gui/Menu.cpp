@@ -400,6 +400,29 @@ void Menu::Render() {
                 ImGui::Checkbox("One-Hit Kill Damage (99,999 DMG)", &bOneHitKillDamage);
                 ImGui::Checkbox("Rapid Fire Rate (Instant Firing)", &bRapidFire);
                 ImGui::Checkbox("Infinite Range (9,999m)", &bInfiniteRange);
+
+                ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Spacing();
+
+                ImGui::TextColored(ImVec4(0.35f, 0.85f, 1.0f, 1.0f), "Teleport & Auto-Loot Items");
+                ImGui::Spacing();
+
+                ImGui::Checkbox("Auto-Teleport & Loot Items", &bTeleportLootItems);
+                ImGui::Checkbox("Loot on Hold Key", &bTeleportLootHoldKey);
+                if (bTeleportLootHoldKey) {
+                    ImGui::Combo("Loot Hotkey", &iTeleportLootKey, g_KeyNames, IM_ARRAYSIZE(g_KeyNames));
+                }
+
+                const char* itemTypes[] = { "All Items & Weapons", "Weapon Spawners Only", "Selected Weapon Only", "Speed Boosts Only" };
+                ImGui::Combo("Loot Filter", &iTeleportLootItemType, itemTypes, IM_ARRAYSIZE(itemTypes));
+
+                ImGui::Spacing();
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.45f, 0.85f, 0.90f));
+                if (ImGui::Button("⚡ TELEPORT & COLLECT NEAREST ITEM", ImVec2(-1, 38))) {
+                    Exploits::TeleportToItem(iTeleportLootItemType);
+                }
+                ImGui::PopStyleColor();
             }
             ImGui::EndChild();
         }

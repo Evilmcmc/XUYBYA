@@ -159,13 +159,13 @@ bool Combat::GetSilentAimTargetPosition(Vector3* outTargetPos) {
     return false;
 }
 
-
 void Combat::DoMassKill() {
     if (!bEnableMassKill || !g_HasLocalPlayer) return;
 
     __try {
         ULONGLONG now = GetTickCount64();
-        if (now - g_LastMassKillTime < (ULONGLONG)fMassKillInterval) return;
+        float interval = (fMassKillInterval < 150.0f) ? 150.0f : fMassKillInterval;
+        if (now - g_LastMassKillTime < (ULONGLONG)interval) return;
         g_LastMassKillTime = now;
 
         if (!g_LocalPlayerInfo.weaponManager || !IsValidUnityObj(g_LocalPlayerInfo.weaponManager)) return;
@@ -174,93 +174,31 @@ void Combat::DoMassKill() {
 
         // Ensure max stats on active weapon
         *(bool*)((char*)activeWeapon + 0x120) = true;
-        *(int*)((char*)activeWeapon + 0x114)  = 99999;
+        *(int*)((char*)activeWeapon + 0x114)  = 999;
         *(float*)((char*)activeWeapon + 0x110) = 0.0f;
 
         void* wData = *(void**)((char*)activeWeapon + 0x100);
         if (wData && IsValidMemPtr(wData, 0x40)) {
-            *(int*)((char*)wData + 0x18)   = 99999;
-            *(int*)((char*)wData + 0x1C)   = 99999;
-            *(float*)((char*)wData + 0x20) = 9999.0f;
-            *(float*)((char*)wData + 0x24) = 0.001f;
-            *(int*)((char*)wData + 0x30)   = 99999;
+            *(int*)((char*)wData + 0x18)   = 1000;
+            *(int*)((char*)wData + 0x1C)   = 1000;
+            *(float*)((char*)wData + 0x20) = 500.0f;
+            *(float*)((char*)wData + 0x24) = 0.05f;
         }
 
-        Vector3 localCamPos{};
-        void* activeCam = SDK::GetCurrentCamera();
-        if (activeCam && IsValidUnityObj(activeCam)) {
-            void* camTr = g_Il2Cpp.GetComponentTransform(activeCam);
-            if (camTr && IsValidUnityObj(camTr)) g_Il2Cpp.GetTransformPosition(camTr, &localCamPos);
-        }
-
-        int killedCount = 0;
         for (const auto& pl : g_CachedPlayers) {
             if (!pl.isEnemy || pl.isDead || pl.hp <= 0 || !IsValidUnityObj(pl.playerObj)) continue;
 
-            void* targetRb = pl.chestRb ? pl.chestRb : pl.rootRb;
-            if (!targetRb || !IsValidUnityObj(targetRb)) continue;
-
-            Vector3 targetHeadPos{};
-            if (!g_Il2Cpp.GetRigidbodyPosition(targetRb, &targetHeadPos)) continue;
-            targetHeadPos = targetHeadPos + Vector3(0.0f, 0.40f, 0.0f);
-
-            // Vector 1: Authoritative CMDShoot Raycast Packet Injection
-            if (SDK::PackDirectionMethod && SDK::PackVector3Method && SDK::CMDShoot) {
-                Vector3 aimDir = targetHeadPos - localCamPos;
-                float len = aimDir.Length();
-                if (len > 0.001f) aimDir = aimDir * (1.0f / len);
-                else aimDir = Vector3(0.0f, 1.0f, 0.0f);
-
-                void* posArgs[1] = { &localCamPos };
-                void* fwdArgs[1] = { &aimDir };
-                void* exc1 = nullptr;
-                void* exc2 = nullptr;
-
-                Il2CppObject* packedPos = g_Il2Cpp.il2cpp_runtime_invoke(SDK::PackVector3Method, nullptr, posArgs, &exc1);
-                Il2CppObject* packedFwd = g_Il2Cpp.il2cpp_runtime_invoke(SDK::PackDirectionMethod, nullptr, fwdArgs, &exc2);
-
-                if (packedPos && packedFwd) {
-                    uint32_t tick = 0;
-                    void* shootArgs[3] = { packedPos, packedFwd, &tick };
-                    void* exc3 = nullptr;
-                    g_Il2Cpp.il2cpp_runtime_invoke(SDK::CMDShoot, activeWeapon, shootArgs, &exc3);
-                }
-            }
-
-            // Vector 2: Hit Effect Animation
-            if (SDK::StartSharedEffectsMethod && SDK::PackVector3Method) {
-                void* vArgs[1] = { &targetHeadPos };
-                void* excV = nullptr;
-                Il2CppObject* packedHit = g_Il2Cpp.il2cpp_runtime_invoke(SDK::PackVector3Method, nullptr, vArgs, &excV);
-                if (packedHit) {
-                    int hitPlayerId = 0;
-                    bool didHit = true;
-                    int lethalDamage = 99999;
-                    bool applyDmg = true;
-                    void* effArgs[5] = { packedHit, &hitPlayerId, &didHit, &lethalDamage, &applyDmg };
-                    void* excEff = nullptr;
-                    g_Il2Cpp.il2cpp_runtime_invoke(SDK::StartSharedEffectsMethod, activeWeapon, effArgs, &excEff);
-                }
-            }
-
-            // Vector 3: Direct Health Packet Depletion
             if (pl.healthComp && SDK::CMDChangeCurrentHealth && IsValidUnityObj(pl.healthComp)) {
                 int deadHealth = 0;
                 void* hArgs[1] = { &deadHealth };
                 void* excH = nullptr;
                 g_Il2Cpp.il2cpp_runtime_invoke(SDK::CMDChangeCurrentHealth, pl.healthComp, hArgs, &excH);
             }
-
-            if (SDK::ClientTryShoot) {
-                void* excShoot = nullptr;
-                g_Il2Cpp.il2cpp_runtime_invoke(SDK::ClientTryShoot, activeWeapon, nullptr, &excShoot);
-            }
-
-            killedCount++;
         }
 
-        if (killedCount > 0) {
-            CheatLog("[PACKET-KILL] Annihilated %d player(s) via server packets", killedCount);
+        if (SDK::ClientTryShoot) {
+            void* excShoot = nullptr;
+            g_Il2Cpp.il2cpp_runtime_invoke(SDK::ClientTryShoot, activeWeapon, nullptr, &excShoot);
         }
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {}
@@ -317,10 +255,31 @@ void Combat::DoTeleportKill(ImGuiIO& /*io*/) {
         Vector3 targetPos{};
         if (!g_Il2Cpp.GetRigidbodyPosition(targetRb, &targetPos)) return;
 
+        Vector3 targetFwd(0.0f, 0.0f, 1.0f);
+        void* targetTr = g_Il2Cpp.GetComponentTransform(targetRb);
+        if (!targetTr && target->playerObj) targetTr = g_Il2Cpp.GetComponentTransform(target->playerObj);
+        if (targetTr && IsValidUnityObj(targetTr)) {
+            g_Il2Cpp.GetTransformForward(targetTr, &targetFwd);
+        }
+
+        // Texture-safe ground clearance offset
+        float safeElevation = fTeleportHeight + 0.85f;
+        if (safeElevation < 0.6f) safeElevation = 0.6f;
+
         Vector3 destPos = targetPos;
-        if (iTeleportPosition == 0) destPos = targetPos + Vector3(0.0f, fTeleportHeight, -fTeleportDistance);
-        else if (iTeleportPosition == 1) destPos = targetPos + Vector3(0.0f, fTeleportDistance + 1.0f, 0.0f);
-        else if (iTeleportPosition == 2) destPos = targetPos + Vector3(0.0f, fTeleportHeight, fTeleportDistance);
+        if (iTeleportPosition == 0) {
+            // Behind Enemy (Backstab) - dynamic relative offset
+            destPos = targetPos - (targetFwd * fTeleportDistance) + Vector3(0.0f, safeElevation, 0.0f);
+        } else if (iTeleportPosition == 1) {
+            // Above Enemy
+            destPos = targetPos + Vector3(0.0f, fTeleportDistance + 1.85f, 0.0f);
+        } else if (iTeleportPosition == 2) {
+            // In Front
+            destPos = targetPos + (targetFwd * fTeleportDistance) + Vector3(0.0f, safeElevation, 0.0f);
+        } else {
+            // Directly on Target
+            destPos = targetPos + Vector3(0.0f, safeElevation, 0.0f);
+        }
 
         void* myRootRb = g_LocalPlayerInfo.rootRb;
         if (myRootRb && IsValidUnityObj(myRootRb)) {

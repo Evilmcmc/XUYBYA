@@ -19,6 +19,8 @@ Il2CppClass* SDK::HealthGracePeriodClass   = nullptr;
 Il2CppClass* SDK::BarrelClass              = nullptr;
 Il2CppClass* SDK::BillboardClass           = nullptr;
 Il2CppClass* SDK::QualitySettingsClass     = nullptr;
+Il2CppClass* SDK::WeaponSpawnClass         = nullptr;
+Il2CppClass* SDK::SpeedBoostSpawnPointClass= nullptr;
 
 // IL2CPP Methods
 MethodInfo*  SDK::DisableCountdownMethod   = nullptr;
@@ -82,6 +84,8 @@ bool SDK::Initialize() {
         HealthGracePeriodClass  = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "HealthGracePeriod");
         BarrelClass             = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "Barrel");
         BillboardClass          = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "Billboard");
+        WeaponSpawnClass        = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "WeaponSpawn");
+        SpeedBoostSpawnPointClass = g_Il2Cpp.il2cpp_class_from_name(asmCS, "", "SpeedBoostSpawnPoint");
 
         if (HealthClass) {
             GetCurrentHealth       = g_Il2Cpp.FindMethod(HealthClass, "GetCurrentHealth", 0);
@@ -130,7 +134,7 @@ void SDK::ResetCache() {
 }
 
 void* SDK::GetCurrentCamera() {
-    void* cam = nullptr;
+    ULONGLONG now = GetTickCount64();
 
     // 1. PRIMARY: Local Player's actual dynamic gameplay camera (moves & rotates with player!)
     if (g_HasLocalPlayer && g_LocalPlayerInfo.playerMovement && IsValidUnityObj(g_LocalPlayerInfo.playerMovement)) {
@@ -158,61 +162,26 @@ void* SDK::GetCurrentCamera() {
         }
     }
 
-    // 3. TERTIARY: Billboard.cam (0x30)
-    if (BillboardClass) {
-        Il2CppArray* bbArr = g_Il2Cpp.FindObjectsOfType(BillboardClass);
-        if (bbArr && IsValidMemPtr(bbArr, 0x28)) {
-            uintptr_t bbCount = *(uintptr_t*)((char*)bbArr + 0x18);
-            if (bbCount > 0 && bbCount <= 16) {
-                void** bbItems = (void**)((char*)bbArr + 0x20);
-                for (uintptr_t b = 0; b < bbCount; b++) {
-                    void* bb = bbItems[b];
-                    if (bb && IsValidUnityObj(bb)) {
-                        void* bCam = *(void**)((char*)bb + 0x30);
-                        if (bCam && IsValidUnityObj(bCam)) {
-                            g_CachedCamera = bCam;
-                            return g_CachedCamera;
-                        }
-                    }
-                }
-            }
-        }
+    // 3. Cached Camera check
+    if (g_CachedCamera && IsValidUnityObj(g_CachedCamera)) {
+        return g_CachedCamera;
     }
 
-    // 4. FALLBACK: Scene Camera.main (used when dead, spectating, or in lobby)
-    cam = g_Il2Cpp.GetMainCamera();
-    if (cam && IsValidUnityObj(cam)) {
-        g_CachedCamera = cam;
-        return g_CachedCamera;
+    // 4. FALLBACK: Scene Camera.main (throttled to avoid frame-rate drops & GC allocations)
+    if (now - g_LastCameraCheckTime > 200) {
+        g_LastCameraCheckTime = now;
+        void* cam = g_Il2Cpp.GetMainCamera();
+        if (cam && IsValidUnityObj(cam)) {
+            g_CachedCamera = cam;
+            return g_CachedCamera;
+        }
     }
 
     return g_CachedCamera;
 }
 
-
-
-
 void SDK::OptimizePerformance() {
-    static bool s_Optimized = false;
-    if (bFpsBoostUltra && !s_Optimized) {
-        g_Il2Cpp.EnsureThreadAttached();
-        if (QualitySettingsClass && SetVSyncCountMethod && g_Il2Cpp.il2cpp_runtime_invoke) {
-            int vsync = 0; // Disable VSync for unconstrained framerates
-            void* args1[1] = { &vsync };
-            void* exc = nullptr;
-            g_Il2Cpp.il2cpp_runtime_invoke(SetVSyncCountMethod, nullptr, args1, &exc);
-
-            int targetFps = 1000; // Unlimited target FPS
-            void* args2[1] = { &targetFps };
-            if (SetTargetFrameRateMethod) {
-                g_Il2Cpp.il2cpp_runtime_invoke(SetTargetFrameRateMethod, nullptr, args2, &exc);
-            }
-            s_Optimized = true;
-            CheatLog("[+] Ultra Performance FPS Optimizer Applied (VSync=0, MaxFPS=1000)");
-        }
-    } else if (!bFpsBoostUltra && s_Optimized) {
-        s_Optimized = false;
-    }
+    // Kept safe and passive to avoid corrupting Unity D3D11 frame synchronization
 }
 
 void SDK::ScanEntities() {

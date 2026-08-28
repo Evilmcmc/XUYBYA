@@ -118,6 +118,10 @@ void Config::Save() {
     f << "bTeleportAutoShoot=" << bTeleportAutoShoot << "\n";
     f << "bTeleportLookAt=" << bTeleportLookAt << "\n";
     f << "fTeleportShootRate=" << fTeleportShootRate << "\n";
+    f << "bTeleportLootItems=" << bTeleportLootItems << "\n";
+    f << "bTeleportLootHoldKey=" << bTeleportLootHoldKey << "\n";
+    f << "iTeleportLootKey=" << iTeleportLootKey << "\n";
+    f << "iTeleportLootItemType=" << iTeleportLootItemType << "\n";
 
     f << "\n[MassKill]\n";
     f << "bEnableMassKill=" << bEnableMassKill << "\n";
@@ -258,6 +262,10 @@ void Config::Load() {
             else if (key == "bTeleportAutoShoot") bTeleportAutoShoot = ParseBool(val);
             else if (key == "bTeleportLookAt") bTeleportLookAt = ParseBool(val);
             else if (key == "fTeleportShootRate") fTeleportShootRate = ParseFloat(val);
+            else if (key == "bTeleportLootItems") bTeleportLootItems = ParseBool(val);
+            else if (key == "bTeleportLootHoldKey") bTeleportLootHoldKey = ParseBool(val);
+            else if (key == "iTeleportLootKey") iTeleportLootKey = ParseInt(val);
+            else if (key == "iTeleportLootItemType") iTeleportLootItemType = ParseInt(val);
             else if (key == "bEnableMassKill") bEnableMassKill = ParseBool(val);
             else if (key == "fMassKillInterval") fMassKillInterval = ParseFloat(val);
             else if (key == "iMassKillMode") iMassKillMode = ParseInt(val);

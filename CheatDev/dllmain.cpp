@@ -98,6 +98,11 @@ bool  bTeleportAutoShoot  = true;
 bool  bTeleportLookAt     = true;
 float fTeleportShootRate  = 45.0f;
 
+bool  bTeleportLootItems  = false;
+bool  bTeleportLootHoldKey= false;
+int   iTeleportLootKey    = 7; // F key
+int   iTeleportLootItemType = 0; // All
+
 bool  bEnableMassKill     = false;
 float fMassKillInterval   = 80.0f;
 int   iMassKillMode       = 1;
@@ -130,10 +135,10 @@ bool  bGrappleMagnetAim      = false;
 
 bool  bCustomFOV             = false;
 float fCustomFOVValue        = 100.0f;
-bool  bFastLoadingOptimizer  = true;
-bool  bFpsBoostUltra         = true;
-bool  bDisableGameShadows    = true;
-bool  bDisableFogAndBlur     = true;
+bool  bFastLoadingOptimizer  = false;
+bool  bFpsBoostUltra         = false;
+bool  bDisableGameShadows    = false;
+bool  bDisableFogAndBlur     = false;
 
 bool  bGodMode               = false;
 bool  bEndGameMatchTrigger   = false;
@@ -147,6 +152,7 @@ char  szSearchQuery[64]      = "";
 
 const char* const g_KeyNames[] = {
     "Left Alt [DEFAULT]",
+    "Left Mouse [LMB]",
     "Right Mouse [RMB]",
     "Left Shift",
     "Left Ctrl",
@@ -159,22 +165,23 @@ const char* const g_KeyNames[] = {
     "[Mouse 5] (Thumb 2)",
     "Always Active [Toggle]"
 };
-const int g_KeyNamesCount = 12;
+const int g_KeyNamesCount = 13;
 
 bool IsKeyActive(int keyIndex) {
     switch (keyIndex) {
-        case 0: return (GetAsyncKeyState(VK_MENU) & 0x8000) || (GetAsyncKeyState(VK_LMENU) & 0x8000) || (GetAsyncKeyState(VK_RBUTTON) & 0x8000);
-        case 1: return (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
-        case 2: return (GetAsyncKeyState(VK_SHIFT) & 0x8000) || (GetAsyncKeyState(VK_LSHIFT) & 0x8000);
-        case 3: return (GetAsyncKeyState(VK_CONTROL) & 0x8000) || (GetAsyncKeyState(VK_LCONTROL) & 0x8000);
-        case 4: return (GetAsyncKeyState('X') & 0x8000) != 0;
-        case 5: return (GetAsyncKeyState('C') & 0x8000) != 0;
-        case 6: return (GetAsyncKeyState('V') & 0x8000) != 0;
-        case 7: return (GetAsyncKeyState('F') & 0x8000) != 0;
-        case 8: return (GetAsyncKeyState(VK_CAPITAL) & 0x8000) != 0;
-        case 9: return (GetAsyncKeyState(VK_XBUTTON1) & 0x8000) != 0;
-        case 10: return (GetAsyncKeyState(VK_XBUTTON2) & 0x8000) != 0;
-        case 11: return true;
+        case 0: return (GetAsyncKeyState(VK_MENU) & 0x8000) || (GetAsyncKeyState(VK_LMENU) & 0x8000) || (GetAsyncKeyState(VK_RMENU) & 0x8000);
+        case 1: return (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+        case 2: return (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+        case 3: return (GetAsyncKeyState(VK_SHIFT) & 0x8000) || (GetAsyncKeyState(VK_LSHIFT) & 0x8000);
+        case 4: return (GetAsyncKeyState(VK_CONTROL) & 0x8000) || (GetAsyncKeyState(VK_LCONTROL) & 0x8000);
+        case 5: return (GetAsyncKeyState('X') & 0x8000) != 0;
+        case 6: return (GetAsyncKeyState('C') & 0x8000) != 0;
+        case 7: return (GetAsyncKeyState('V') & 0x8000) != 0;
+        case 8: return (GetAsyncKeyState('F') & 0x8000) != 0;
+        case 9: return (GetAsyncKeyState(VK_CAPITAL) & 0x8000) != 0;
+        case 10: return (GetAsyncKeyState(VK_XBUTTON1) & 0x8000) != 0;
+        case 11: return (GetAsyncKeyState(VK_XBUTTON2) & 0x8000) != 0;
+        case 12: return true;
         default: return (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
     }
 }
